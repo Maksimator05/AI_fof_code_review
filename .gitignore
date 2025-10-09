@@ -1,0 +1,24 @@
+# ==================== Python ====================
+# Виртуальные окружения
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Пип кэш
+__pycache__/
+
+# ==================== PyCharm ====================
+# JetBrains IDE
+.idea/
+
+# Файлы с переменными окружения
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*
+!.env.example
