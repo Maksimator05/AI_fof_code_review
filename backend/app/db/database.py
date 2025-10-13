@@ -1,24 +1,29 @@
-from typing import Dict, List, Union
+from sqlalchemy import create_engine, Column, Integer, String, Boolean
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-# Тестовый вариант для изображения рабочей базы данных
-class Database:
-    def __init__(self):
-        self._users: List[Dict[str, Union[int, str, bool]]] = [
-            {
-                'id': 1,
-                'nickname': 'Ivan Ivanov',
-                'email': 'i.i.ivanov@mail.com',
-            }
-        ]
+SQLALCHEMY_DATABASE_URL = "sqlite:///./auth.db"
 
-        self._id = len(self._users)
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-    def get_user_by_email(self, email: str):
-        # TODO
-        return None
+Base = declarative_base()
 
-    def get_user_by_nickname(self, nickname: str):
-        # TODO
-        return None
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-db = Database()
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    username = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)

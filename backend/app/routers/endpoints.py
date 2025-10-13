@@ -1,49 +1,90 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List
 
-from backend.app.schemas.user import UserInfo
-from backend.app.db.database import db
+from backend.app.schemas.user import UserResponse, UserLogin, UserCreate, Token
+from backend.app.db.database import get_db, User, Base, engine
+from .helpFunc import (
+    Session,
+    get_current_user,
+    get_user_by_username,
+    get_user_by_email,
+    authenticate_user
+)
+from backend.app.db.auth import (
+    get_password_hash,
+    create_access_token,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    timedelta
+)
+
+Base.metadata.create_all(bind=engine)
 
 router = APIRouter()
 
 
-#===========================================================#
-#       GET-request, path parameters, get user info
-#===========================================================#
-@router.get("/userEmail",
-            status_code=status.HTTP_200_OK,
-            response_model=UserInfo,
-            responses={404: {"detail": "User not found"}})
-async def get_user_by_email(email: str):
-    '''Получение пользователя по email'''
-    user = db.get_user_by_email(email)
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+# Роуты
+@router.post("/register", response_model=UserResponse)
+def register(user_data: UserCreate, db: Session = Depends(get_db)):
+    # Проверяем, существует ли пользователь с таким username
+    db_user = get_user_by_username(db, username=user_data.username)
+    if db_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already registered"
+        )
 
-    # Пока что предположительно выглядеть информация о пользователях будет так
-    return UserInfo(
-        id=user['id'],
-        nickname=user['nickname'],
-        email=user['email']
+    # Проверяем, существует ли пользователь с таким email
+    db_user = get_user_by_email(db, email=user_data.email)
+    if db_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+
+    # Создаем нового пользователя
+    hashed_password = get_password_hash(user_data.password)
+    user = User(
+        email=user_data.email,
+        username=user_data.username,
+        hashed_password=hashed_password
     )
 
+    db.add(user)
+    db.commit()
+    db.refresh(user)
 
-@router.get("/userNickname",
-            status_code=status.HTTP_200_OK,
-            response_model=UserInfo,
-            responses={404: {"detail": "User not found"}}
-)
-async def get_user_by_nickname(nickname: str):
-    ''' получение пользователя по никнейму, пока что
-    будет заложена логика получения сведений о пользователе по двум
-    его инфо-полям(никнейм/email), однако
-    далее нужно реализовать аутентификацию
-    '''
-    user = db.get_user_by_nickname(nickname)
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return user
 
-    return UserInfo(
-        id=user['id'],
-        nickname=user['nickname'],
-        email=user['email']
+
+@router.post("/login", response_model=Token)
+def login(user_data: UserLogin, db: Session = Depends(get_db)):
+    user = authenticate_user(db, user_data.username, user_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
     )
+
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.get("/users/me", response_model=UserResponse)
+def read_users_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.get("/users/", response_model=List[UserResponse])
+def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    users = db.query(User).offset(skip).limit(limit).all()
+    return users
+
+
+@router.get("/")
+def read_root():
+    return {"message": "Auth API is running"}
