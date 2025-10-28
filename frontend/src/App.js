@@ -1,9 +1,12 @@
 import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Header from './components/Header';
 import LanguageCard from './components/LanguageCard';
+import Registration from './components/Registration';
+import Login from './components/Login';
 import './App.css';
 
-function App() {
+function HomePage() {
   const languages = [
     {
       name: "Python",
@@ -68,6 +71,18 @@ function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/register" element={<Registration />} />
+        <Route path="/login" element={<Login />} />
+      </Routes>
+    </Router>
   );
 }
 

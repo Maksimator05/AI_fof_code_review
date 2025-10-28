@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 function Header() {
   return (
@@ -14,9 +15,9 @@ function Header() {
       </div>
       
       <nav className="flex space-x-6">
-        <button className="text-gray-700 hover:text-blue-600 font-medium transition-colors">
+        <Link to="/" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">
           Главная
-        </button>
+        </Link>
         <button className="text-gray-700 hover:text-blue-600 font-medium transition-colors">
           Анализ
         </button>
@@ -28,10 +29,13 @@ function Header() {
         </button>
       </nav>
       
-      <div className="flex items-center space-x-4">
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+       <div className="flex items-center space-x-4">
+        <Link 
+          to="/login" 
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+        >
           Войти
-        </button>
+        </Link>
       </div>
     </header>
   );
