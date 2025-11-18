@@ -1,6 +1,6 @@
 FROM python:3.12
 
-WORKDIR /backend
+WORKDIR /
 
 COPY requirements.txt .
 
@@ -9,4 +9,4 @@ RUN pip install -r requirements.txt
 
 COPY app /backend/app
 
-CMD ["python", "-m", "app.main"]
+CMD ["python", "-m", "backend.app.main"]
