@@ -1,0 +1,302 @@
+[
+  {
+    "id": 1,
+    "code": "\nimport sqlite3\n\ndef get_user_data(user_id):\n    conn = sqlite3.connect('database.db')\n    cursor = conn.cursor()\n    query = f\"SELECT * FROM users WHERE id = {user_id}\"\n    cursor.execute(query)\n    return cursor.fetchall()\n",
+    "language": "python",
+    "has_vulnerability": true,
+    "vulnerability_type": "SQL Injection",
+    "has_style_issues": true,
+    "style_issues": "PEP8: line too long, unsafe string formatting",
+    "expected_issues": "SQL Injection, unsafe query construction"
+  },
+  {
+    "id": 2,
+    "code": "\nfunction getUserInput() {\n    const name = document.getElementById('name').value;\n    document.getElementById('output').innerHTML = '<div>Hello ' + name + '</div>';\n}\n",
+    "language": "javascript",
+    "has_vulnerability": true,
+    "vulnerability_type": "XSS",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "XSS through innerHTML"
+  },
+  {
+    "id": 3,
+    "code": "\ndef calculate_average(numbers):\n    total = 0\n    count = 0\n    for num in numbers:\n        total = total + num\n        count += 1\n    average = total / count\n    return average\n",
+    "language": "python",
+    "has_vulnerability": false,
+    "vulnerability_type": "None",
+    "has_style_issues": true,
+    "style_issues": "PEP8: variable names could be better, no error handling",
+    "expected_issues": "Potential ZeroDivisionError"
+  },
+  {
+    "id": 4,
+    "code": "\nfunction processPayment(cardNumber) {\n    console.log('Processing card:', cardNumber);\n    // Process payment logic here\n    return true;\n}\n",
+    "language": "javascript",
+    "has_vulnerability": true,
+    "vulnerability_type": "Information Exposure",
+    "has_style_issues": true,
+    "style_issues": "Hardcoded logging of sensitive data",
+    "expected_issues": "Logging sensitive payment information"
+  },
+  {
+    "id": 5,
+    "code": "\nimport os\n\ndef read_config_file(filename):\n    file_path = '/config/' + filename\n    with open(file_path, 'r') as f:\n        return f.read()\n",
+    "language": "python",
+    "has_vulnerability": true,
+    "vulnerability_type": "Path Traversal",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "Path Traversal vulnerability"
+  },
+  {
+    "id": 6,
+    "code": "\ndef create_user(username, password):\n    # Simple password check\n    if len(password) < 4:\n        return False\n    # Store user in database\n    return True\n",
+    "language": "python",
+    "has_vulnerability": true,
+    "vulnerability_type": "Weak Authentication",
+    "has_style_issues": true,
+    "style_issues": "Weak password policy",
+    "expected_issues": "Insecure authentication: weak password requirements"
+  },
+  {
+    "id": 7,
+    "code": "\nfunction validateEmail(email) {\n    if (email.includes('@')) {\n        return true;\n    }\n    return false;\n}\n",
+    "language": "javascript",
+    "has_vulnerability": false,
+    "vulnerability_type": "None",
+    "has_style_issues": true,
+    "style_issues": "Weak email validation",
+    "expected_issues": "Weak validation logic"
+  },
+  {
+    "id": 8,
+    "code": "\nimport pickle\nimport requests\n\ndef load_data(url):\n    response = requests.get(url)\n    data = pickle.loads(response.content)\n    return data\n",
+    "language": "python",
+    "has_vulnerability": true,
+    "vulnerability_type": "Insecure Deserialization",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "Insecure deserialization with pickle"
+  },
+  {
+    "id": 9,
+    "code": "\ndef format_username(username):\n    import subprocess\n    cmd = f\"echo {username}\"\n    result = subprocess.check_output(cmd, shell=True)\n    return result.decode().strip()\n",
+    "language": "python",
+    "has_vulnerability": true,
+    "vulnerability_type": "Command Injection",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "Command Injection through shell=True"
+  },
+  {
+    "id": 10,
+    "code": "\nfunction saveUserPreferences(prefs) {\n    localStorage.setItem('userPrefs', JSON.stringify(prefs));\n    // Also send to server\n    fetch('/api/preferences', {\n        method: 'POST',\n        body: JSON.stringify(prefs),\n        headers: {'Content-Type': 'application/json'}\n    });\n}\n",
+    "language": "javascript",
+    "has_vulnerability": false,
+    "vulnerability_type": "None",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "No major issues"
+  },
+  {
+    "id": 11,
+    "code": "\nimport hashlib\n\ndef hash_password(password):\n    # Simple MD5 hashing\n    return hashlib.md5(password.encode()).hexdigest()\n",
+    "language": "python",
+    "has_vulnerability": true,
+    "vulnerability_type": "Weak Cryptography",
+    "has_style_issues": true,
+    "style_issues": "Use of weak MD5 hashing",
+    "expected_issues": "Insecure password hashing with MD5"
+  },
+  {
+    "id": 12,
+    "code": "\nfunction parseJSON(data) {\n    return eval('(' + data + ')');\n}\n",
+    "language": "javascript",
+    "has_vulnerability": true,
+    "vulnerability_type": "Insecure Input Handling",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "Dangerous use of eval()"
+  },
+  {
+    "id": 13,
+    "code": "\ndef process_xml(xml_string):\n    import xml.etree.ElementTree as ET\n    tree = ET.fromstring(xml_string)\n    return tree.find('data').text\n",
+    "language": "python",
+    "has_vulnerability": true,
+    "vulnerability_type": "XXE",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "XML External Entity (XXE) vulnerability"
+  },
+  {
+    "id": 14,
+    "code": "\nclass DatabaseConnection:\n    def __init__(self):\n        self.host = 'localhost'\n        self.user = 'admin'\n        self.password = 'password123'\n        self.database = 'myapp'\n",
+    "language": "python",
+    "has_vulnerability": true,
+    "vulnerability_type": "Hardcoded Secrets",
+    "has_style_issues": true,
+    "style_issues": "Hardcoded credentials",
+    "expected_issues": "Hardcoded database credentials"
+  },
+  {
+    "id": 15,
+    "code": "\nfunction timeoutHandler() {\n    setTimeout(() => {\n        window.location.href = document.location.hash.substring(1);\n    }, 1000);\n}\n",
+    "language": "javascript",
+    "has_vulnerability": true,
+    "vulnerability_type": "Client-side URL Redirect",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "Unvalidated redirect via URL hash"
+  },
+  {
+    "id": 16,
+    "code": "\ndef safe_file_operation(filename):\n    import os\n    base_dir = '/safe/path/'\n    full_path = os.path.join(base_dir, filename)\n    if not full_path.startswith(base_dir):\n        raise ValueError('Invalid path')\n    with open(full_path, 'r') as f:\n        return f.read()\n",
+    "language": "python",
+    "has_vulnerability": false,
+    "vulnerability_type": "None",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "Proper path validation - SAFE EXAMPLE"
+  },
+  {
+    "id": 17,
+    "code": "\nfunction safeHTML(input) {\n    const div = document.createElement('div');\n    div.textContent = input;\n    return div.innerHTML;\n}\n",
+    "language": "javascript",
+    "has_vulnerability": false,
+    "vulnerability_type": "None",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "Proper XSS protection - SAFE EXAMPLE"
+  },
+  {
+    "id": 18,
+    "code": "\ndef divide_numbers(a, b):\n    result = a / b\n    return result\n",
+    "language": "python",
+    "has_vulnerability": false,
+    "vulnerability_type": "None",
+    "has_style_issues": true,
+    "style_issues": "No error handling for division by zero",
+    "expected_issues": "Potential ZeroDivisionError"
+  },
+  {
+    "id": 19,
+    "code": "\nfunction checkAdmin(user) {\n    if (user.role === 'admin') {\n        return true;\n    } else {\n        return false;\n    }\n}\n",
+    "language": "javascript",
+    "has_vulnerability": false,
+    "vulnerability_type": "None",
+    "has_style_issues": true,
+    "style_issues": "Redundant else statement",
+    "expected_issues": "Code style: redundant else block"
+  },
+  {
+    "id": 20,
+    "code": "\nimport requests\n\ndef download_file(url, local_path):\n    response = requests.get(url, verify=False)\n    with open(local_path, 'wb') as f:\n        f.write(response.content)\n",
+    "language": "python",
+    "has_vulnerability": true,
+    "vulnerability_type": "SSL Verification Bypass",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "SSL certificate verification disabled"
+  },
+  {
+    "id": 21,
+    "code": "\nfunction processArray(items) {\n    for (var i = 0; i < items.length; i++) {\n        setTimeout(function() {\n            console.log('Item: ' + items[i]);\n        }, 100);\n    }\n}\n",
+    "language": "javascript",
+    "has_vulnerability": false,
+    "vulnerability_type": "None",
+    "has_style_issues": true,
+    "style_issues": "Closure issue in loop",
+    "expected_issues": "JavaScript closure issue with loop variable"
+  },
+  {
+    "id": 22,
+    "code": "\ndef generate_session_id():\n    import random\n    return str(random.randint(1000, 9999))\n",
+    "language": "python",
+    "has_vulnerability": true,
+    "vulnerability_type": "Insecure Randomness",
+    "has_style_issues": true,
+    "style_issues": "Use of insecure random for session",
+    "expected_issues": "Insecure session ID generation"
+  },
+  {
+    "id": 23,
+    "code": "\nfunction getUserProfile(userId) {\n    const query = `SELECT * FROM users WHERE id = ${userId}`;\n    // Execute query...\n    return db.execute(query);\n}\n",
+    "language": "javascript",
+    "has_vulnerability": true,
+    "vulnerability_type": "SQL Injection",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "SQL Injection in template literal"
+  },
+  {
+    "id": 24,
+    "code": "\ndef calculate_discount(price, discount_percent):\n    final_price = price * (1 - discount_percent / 100)\n    print('Final price:', final_price)\n    return final_price\n",
+    "language": "python",
+    "has_vulnerability": false,
+    "vulnerability_type": "None",
+    "has_style_issues": true,
+    "style_issues": "PEP8: missing type hints, print statement",
+    "expected_issues": "Code style issues"
+  },
+  {
+    "id": 25,
+    "code": "\nfunction validateAge(age) {\n    if (age < 0) {\n        throw new Error('Invalid age');\n    }\n    return age >= 18;\n}\n",
+    "language": "javascript",
+    "has_vulnerability": false,
+    "vulnerability_type": "None",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "Proper validation - SAFE EXAMPLE"
+  },
+  {
+    "id": 26,
+    "code": "\nimport sys\n\ndef read_environment_variable():\n    api_key = sys.environ.get('API_KEY')\n    print(f\"Using API Key: {api_key}\")\n    return api_key\n",
+    "language": "python",
+    "has_vulnerability": true,
+    "vulnerability_type": "Information Exposure",
+    "has_style_issues": true,
+    "style_issues": "Logging sensitive environment variables",
+    "expected_issues": "Exposure of sensitive data in logs"
+  },
+  {
+    "id": 27,
+    "code": "\nfunction loadExternalScript(url) {\n    const script = document.createElement('script');\n    script.src = url;\n    document.head.appendChild(script);\n}\n",
+    "language": "javascript",
+    "has_vulnerability": true,
+    "vulnerability_type": "Unsafe Dynamic Resource",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "Loading external scripts without validation"
+  },
+  {
+    "id": 28,
+    "code": "\ndef merge_dicts(dict1, dict2):\n    result = dict1.copy()\n    for key, value in dict2.items():\n        result[key] = value\n    return result\n",
+    "language": "python",
+    "has_vulnerability": false,
+    "vulnerability_type": "None",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "Clean code - SAFE EXAMPLE"
+  },
+  {
+    "id": 29,
+    "code": "\nfunction calculateTotal(items) {\n    let total = 0;\n    items.forEach(item => {\n        total += item.price * item.quantity;\n    });\n    return total;\n}\n",
+    "language": "javascript",
+    "has_vulnerability": false,
+    "vulnerability_type": "None",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "Clean code - SAFE EXAMPLE"
+  },
+  {
+    "id": 30,
+    "code": "\nimport jwt\n\ndef verify_token(token):\n    # No signature verification\n    decoded = jwt.decode(token, options={'verify_signature': False})\n    return decoded\n",
+    "language": "python",
+    "has_vulnerability": true,
+    "vulnerability_type": "JWT Vulnerability",
+    "has_style_issues": false,
+    "style_issues": "",
+    "expected_issues": "JWT signature verification disabled"
+  }
+]
