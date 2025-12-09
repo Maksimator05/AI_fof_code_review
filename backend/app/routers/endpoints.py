@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 from pydantic import EmailStr
 
 from backend.app.schemas.user import UserRegister, UserLogin, UserResponse, Token
-from backend.app.db.database import get_db
+from backend.app.schemas.code_analysis import CodeAnalysisRequest, CodeAnalysisResponse
 from backend.app.models import User, UserSettings
-from backend.app.db.auth import (
+from backend.app.db.database import get_db
+from backend.app.auth import (
     get_password_hash,
     verify_password,
     create_token,
@@ -17,6 +18,7 @@ from backend.app.db.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     REFRESH_TOKEN_EXPIRE_DAYS
 )
+from backend.app.clients.ml_client import ml_client
 
 
 router = APIRouter()
@@ -48,16 +50,16 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    username: str = payload.get("sub")
+    user_id: str = payload.get("sub")
     token_type: str = payload.get("type")
 
-    if token_type != "access" or username is None:
+    if token_type != "access" or user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token or Username",
         )
 
-    user = get_user_by_username(db, username=username)
+    user = get_user_by_id(db, int(user_id))
     if user is None or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -215,6 +217,48 @@ def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-@router.get("/health")
-def read_root():
-    return {"message": "Auth API is running"}
+@router.post(
+    path="/analyze-code",
+    response_model=CodeAnalysisResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Анализ кода с помощью ML",
+    description="Отправляет код на анализ в ML-сервис и возвращает результаты"
+)
+async def send_code_for_analyze(request: CodeAnalysisRequest, current_user: User = Depends(get_current_user)):
+    # использование переменной пока пусть так, надо допилить сообщения и переменная будет использоваться
+    #TODO внести еще нужно изменения в сообщения и в беседу пользователя
+
+    ml_response = await ml_client.analyze_code(request.code)
+
+    return CodeAnalysisResponse(
+        analysis=ml_response["analysis"],
+        status=ml_response["status"],
+        language=request.language,
+        timestamp=datetime.utcnow().isoformat()
+    )
+
+
+@router.get("/health-api", status_code=status.HTTP_200_OK)
+def get_api_health():
+    return JSONResponse(content={"message": "API is running"})
+
+
+@router.get("/health-ml", status_code=status.HTTP_200_OK)
+async def get_ml_health():
+    try:
+        await ml_client.check_health()
+        response = JSONResponse(
+            content={
+                "status": "available",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+    except HTTPException as e:
+        response = JSONResponse(
+            content={
+                "status": "unavailable",
+                "timestamp": datetime.utcnow().isoformat(),
+                "detail": str(e)
+            }
+        )
+    return response
