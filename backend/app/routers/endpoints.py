@@ -54,20 +54,22 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user_id: str = payload.get("sub")
+    username: str = payload.get("sub")
     token_type: str = payload.get("type")
 
-    if token_type != "access" or user_id is None:
+    if token_type != "access" or username is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token or Username",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = get_user_by_id(db, int(user_id))
+    user = get_user_by_username(db, username)
     if user is None or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or inactive",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     return user
 
@@ -105,7 +107,7 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
 def login(user_data: UserLogin, db: Session = Depends(get_db)):
     user = get_user_by_username(db, user_data.username)
 
-    if (not user) | (not verify_password(user_data.password, user.hashed_password)):
+    if (not user) or (not verify_password(user_data.password, user.hashed_password)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -114,7 +116,7 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
-            detail="Account temporarily locked due to too many failed login attempts"
+            detail="User is inactive"
         )
 
     user.last_login = datetime.utcnow()
@@ -122,13 +124,13 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_token(
-        data={"sub": user.id, "type": "access"},
+        data={"sub": user.username, "type": "access"},
         expires_delta=access_token_expires
     )
 
     refresh_token_expires = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     refresh_token = create_token(
-        data={"sub": user.id, "type": "refresh"},
+        data={"user_id": user.id, "type": "refresh"},
         expires_delta=refresh_token_expires
     )
 
@@ -142,17 +144,16 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        # secure=True,
-        secure=False,
+        secure=False, # true когда по https будем общаться
         samesite="strict",
-        max_age=7*24*60*60
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS*24*60*60
     )
 
     return response
 
 
 @router.post("/refresh", response_model=Token)
-def refresh_access_token(request: Request):
+def refresh_access_token(request: Request, db: Session = Depends(get_db)):
     refresh_token = request.cookies.get("refresh_token")
 
     if not refresh_token:
@@ -164,8 +165,8 @@ def refresh_access_token(request: Request):
 
     try:
         payload = decode_token(refresh_token)
-        user_id: str = payload.get("sub")
-        token_type: str = payload.get("type")
+        user_id = payload.get("user_id")
+        token_type = payload.get("type")
     except JWTError as e:
         response = JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -173,25 +174,29 @@ def refresh_access_token(request: Request):
         )
         response.delete_cookie(
             key="refresh_token",
-            secure=True,
             httponly=True
         )
         return response
 
-    if user_id is None:
+    if (user_id is None) or (token_type != "refresh"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token"
+            detail="Invalid refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    if token_type != "refresh":
+
+    user = get_user_by_id(db, int(user_id))
+
+    if (not user) | (not user.is_active):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token type"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User incorrect or locked",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_token(
-        data={"sub": int(user_id), "type": "access"},
+        data={"sub": user.username, "type": "access"},
         expires_delta=access_token_expires
     )
 
