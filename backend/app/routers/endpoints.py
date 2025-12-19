@@ -40,8 +40,12 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     token = credentials.credentials
     try:
         payload = decode_token(token)
-    except JWTError:
-        raise JWTError
+    except JWTError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid or expired token. JWTEr: {str(e)}",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
 
     if payload is None:
         raise HTTPException(
@@ -107,7 +111,7 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
             detail="Incorrect username or password",
         )
 
-    if user.locked_until and user.locked_until > datetime.utcnow():
+    if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
             detail="Account temporarily locked due to too many failed login attempts"
@@ -216,7 +220,9 @@ def logout():
 def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
-
+# /message
+# /load_file
+# /answer
 @router.post(
     path="/analyze-code",
     response_model=CodeAnalysisResponse,

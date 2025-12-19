@@ -2,6 +2,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.app.db.create_tables import create_tables
 from backend.app.routers.endpoints import router
 
 app = FastAPI(
@@ -20,6 +21,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+create_tables()
 
 
 if __name__ == "__main__":
