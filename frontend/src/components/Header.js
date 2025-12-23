@@ -7,7 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 const NAV_ITEMS = [
   { path: '/', label: 'Главная', type: 'link' },
   { path: '/chat', label: 'Анализ', type: 'link' },
-  { label: 'История', type: 'button' },
+  { label: 'История', type: 'link' },
   { path: '/settings', label:'Настройки', type: 'link' },
 ];
 
