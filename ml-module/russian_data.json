@@ -1,0 +1,145 @@
+[
+  {
+    "id": "rev_0008",
+    "code": "def get_user_data(user_id):\n    conn = sqlite3.connect('database.db')\n    cursor = conn.cursor()\n    cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")\n    return cursor.fetchone()",
+    "language": "python",
+    "review_comment": "Уязвимость SQL-инъекции! Никогда не используй f-строки для подстановки в SQL запросы. Используй параметризованные запросы.",
+    "category": "security",
+    "severity": "critical",
+    "context": "Получение данных пользователя из БД",
+    "suggested_fix": "def get_user_data(user_id):\n    conn = sqlite3.connect('database.db')\n    cursor = conn.cursor()\n    cursor.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))\n    return cursor.fetchone()",
+    "category_description": "Проблемы безопасности"
+  },
+  {
+    "id": "rev_0009",
+    "code": "def validate_email(email):\n    if '@' in email:\n        return True\n    return False",
+    "language": "python",
+    "review_comment": "Слишком простая валидация email. Пропускает невалидные адреса. Используй регулярные выражения или специализированные библиотеки.",
+    "category": "validation",
+    "severity": "medium",
+    "context": "Валидация email адреса",
+    "suggested_fix": "import re\n\ndef validate_email(email):\n    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$'\n    return bool(re.match(pattern, email))",
+    "category_description": "Валидация данных"
+  },
+  {
+    "id": "rev_0010",
+    "code": "def divide_numbers(a, b):\n    return a / b",
+    "language": "python",
+    "review_comment": "Нет обработки деления на ноль. При b=0 программа упадет с ZeroDivisionError.",
+    "category": "error_handling",
+    "severity": "high",
+    "context": "Деление двух чисел",
+    "suggested_fix": "def divide_numbers(a, b):\n    try:\n        return a / b\n    except ZeroDivisionError:\n        print(\"Ошибка: деление на ноль\")\n        return None",
+    "category_description": "Обработка ошибок и исключений"
+  },
+  {
+    "id": "rev_0011",
+    "code": "class User:\n    def __init__(self):\n        self.name = \"\"\n        self.email = \"\"\n        self.password = \"\"",
+    "language": "python",
+    "review_comment": "Пароль хранится в открытом виде. Это серьезная уязвимость безопасности. Всегда хэшируй пароли.",
+    "category": "security",
+    "severity": "critical",
+    "context": "Модель пользователя",
+    "suggested_fix": "import hashlib\nimport os\n\nclass User:\n    def __init__(self):\n        self.name = \"\"\n        self.email = \"\"\n        self.password_hash = \"\"\n    \n    def set_password(self, password):\n        salt = os.urandom(32)\n        self.password_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)",
+    "category_description": "Проблемы безопасности"
+  },
+  {
+    "id": "rev_0012",
+    "code": "def process_items(items):\n    result = []\n    for i in range(len(items)):\n        for j in range(len(items)):\n            result.append(items[i] + items[j])\n    return result",
+    "language": "python",
+    "review_comment": "Алгоритмическая сложность O(n²). Для больших списков это будет очень медленно. Пересмотри алгоритм.",
+    "category": "performance",
+    "severity": "high",
+    "context": "Обработка списка элементов",
+    "suggested_fix": "def process_items(items):\n    # Если действительно нужны все пары, оптимизируем по-другому\n    result = []\n    n = len(items)\n    for i in range(n):\n        for j in range(i, n):  # Уменьшаем количество итераций\n            result.append(items[i] + items[j])\n    return result",
+    "category_description": "Проблемы производительности"
+  },
+  {
+    "id": "rev_0013",
+    "code": "def send_email(to, subject, body):\n    # код отправки email\n    print(f\"Email sent to {to}\")",
+    "language": "python",
+    "review_comment": "Нет валидации email адреса. Можно отправить письмо на невалидный адрес.",
+    "category": "validation",
+    "severity": "medium",
+    "context": "Отправка email",
+    "suggested_fix": "import re\n\ndef send_email(to, subject, body):\n    if not validate_email(to):\n        raise ValueError(\"Невалидный email адрес\")\n    # код отправки email\n    print(f\"Email sent to {to}\")",
+    "category_description": "Валидация данных"
+  },
+  {
+    "id": "rev_0014",
+    "code": "def calculate_total(price, quantity, discount=0):\n    total = price * quantity\n    total = total - discount\n    return total",
+    "language": "python",
+    "review_comment": "Нет проверки на отрицательные значения. Цена, количество и скидка должны быть неотрицательными.",
+    "category": "validation",
+    "severity": "medium",
+    "context": "Расчет общей стоимости",
+    "suggested_fix": "def calculate_total(price, quantity, discount=0):\n    if price < 0 or quantity < 0 or discount < 0:\n        raise ValueError(\"Цена, количество и скидка не могут быть отрицательными\")\n    if discount > price * quantity:\n        raise ValueError(\"Скидка не может превышать общую стоимость\")\n    \n    total = price * quantity - discount\n    return max(total, 0)  # Итоговая сумма не может быть отрицательной",
+    "category_description": "Валидация данных"
+  },
+  {
+    "id": "rev_0015",
+    "code": "config = {\n    'database_password': 'mysecretpassword123',\n    'api_key': 'sk-1234567890abcdef',\n    'admin_email': 'admin@example.com'\n}",
+    "language": "python",
+    "review_comment": "Чувствительные данные хранятся в коде в открытом виде. Используй переменные окружения или файлы конфигурации.",
+    "category": "security",
+    "severity": "high",
+    "context": "Конфигурация приложения",
+    "suggested_fix": "import os\n\nconfig = {\n    'database_password': os.getenv('DB_PASSWORD'),\n    'api_key': os.getenv('API_KEY'),\n    'admin_email': os.getenv('ADMIN_EMAIL')\n}",
+    "category_description": "Проблемы безопасности"
+  },
+  {
+    "id": "rev_0016",
+    "code": "def find_user_by_name(users, name):\n    for user in users:\n        if user['name'] == name:\n            return user\n    return None",
+    "language": "python",
+    "review_comment": "Функция возвращает None если пользователь не найден, но вызывающий код может не обработать этот случай.",
+    "category": "error_handling",
+    "severity": "medium",
+    "context": "Поиск пользователя в списке",
+    "suggested_fix": "def find_user_by_name(users, name):\n    for user in users:\n        if user['name'] == name:\n            return user\n    raise ValueError(f\"Пользователь с именем '{name}' не найден\")",
+    "category_description": "Обработка ошибок и исключений"
+  },
+  {
+    "id": "rev_0017",
+    "code": "def update_user_score(user_id, score):\n    # обновление score в базе данных\n    print(f\"Score updated for user {user_id}\")",
+    "language": "python",
+    "review_comment": "Нет проверки границ для score. Score должен быть в разумных пределах.",
+    "category": "validation",
+    "severity": "low",
+    "context": "Обновление счета пользователя",
+    "suggested_fix": "def update_user_score(user_id, score):\n    if not isinstance(score, (int, float)):\n        raise TypeError(\"Score должен быть числом\")\n    if score < 0 or score > 1000000:\n        raise ValueError(\"Score должен быть между 0 и 1000000\")\n    \n    # обновление score в базе данных\n    print(f\"Score updated for user {user_id}\")",
+    "category_description": "Валидация данных"
+  },
+  {
+    "id": "rev_0018",
+    "code": "def download_file(url, path):\n    import urllib.request\n    urllib.request.urlretrieve(url, path)",
+    "language": "python",
+    "review_comment": "Нет проверки размера файла перед скачиванием. Можно скачать слишком большой файл.",
+    "category": "security",
+    "severity": "medium",
+    "context": "Скачивание файла по URL",
+    "suggested_fix": "def download_file(url, path, max_size_mb=100):\n    import urllib.request\n    \n    # Проверяем размер файла перед скачиванием\n    with urllib.request.urlopen(url) as response:\n        file_size = int(response.headers.get('Content-Length', 0))\n        \n        if file_size > max_size_mb * 1024 * 1024:\n            raise ValueError(f\"Файл слишком большой: {file_size} bytes\")\n    \n    urllib.request.urlretrieve(url, path)",
+    "category_description": "Проблемы безопасности"
+  },
+  {
+    "id": "rev_0019",
+    "code": "def format_date(date_string):\n    return date_string.replace('-', '/')",
+    "language": "python",
+    "review_comment": "Нет проверки формата входной даты. Функция может вернуть невалидную дату.",
+    "category": "validation",
+    "severity": "medium",
+    "context": "Форматирование даты",
+    "suggested_fix": "from datetime import datetime\n\ndef format_date(date_string):\n    try:\n        # Пробуем распарсить дату\n        date_obj = datetime.strptime(date_string, '%Y-%m-%d')\n        return date_obj.strftime('%Y/%m/%d')\n    except ValueError:\n        raise ValueError(f\"Невалидный формат даты: {date_string}\")",
+    "category_description": "Валидация данных"
+  },
+  {
+    "id": "rev_0020",
+    "code": "def calculate_average(numbers):\n    return sum(numbers) / len(numbers)",
+    "language": "python",
+    "review_comment": "Нет обработки пустого списка. При numbers=[] будет ZeroDivisionError.",
+    "category": "error_handling",
+    "severity": "medium",
+    "context": "Расчет среднего значения",
+    "suggested_fix": "def calculate_average(numbers):\n    if not numbers:\n        raise ValueError(\"Список чисел не может быть пустым\")\n    return sum(numbers) / len(numbers)",
+    "category_description": "Обработка ошибок и исключений"
+  }
+]
