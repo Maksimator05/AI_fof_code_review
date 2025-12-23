@@ -15,10 +15,15 @@ from sqlalchemy.orm import Session
 from pydantic import EmailStr
 import os
 
-from backend.app.schemas.user import UserRegister, UserLogin, UserResponse, Token
+from backend.app.schemas.user import (
+    UserRegister,
+    UserLogin,
+    UserResponse,
+    Token
+)
 from backend.app.schemas.code_analysis import (
-    CodeAnalysisRequest,
-    CodeAnalysisResponse,
+    # CodeAnalysisRequest,
+    # CodeAnalysisResponse,
     MessageCreateRequest,
     MessageResponse,
     FileUploadResponse
@@ -91,7 +96,6 @@ def get_current_user(
 
 
 def create_conversation_title(body: str, max_length: int = 30) -> str:
-    """Создаёт краткий заголовок беседы из первых слов сообщения"""
     words = body.strip().split()
     if not words:
         return "Новая беседа"
@@ -101,7 +105,9 @@ def create_conversation_title(body: str, max_length: int = 30) -> str:
 
 # === AUTH & USER ENDPOINTS ===
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register",
+             response_model=UserResponse,
+             status_code=status.HTTP_201_CREATED)
 def register(user_data: UserRegister, db: Session = Depends(get_db)):
     if get_user_by_username(db, user_data.username):
         raise HTTPException(
@@ -128,7 +134,9 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
     return user
 
 
-@router.post("/login", response_model=Token, status_code=status.HTTP_200_OK)
+@router.post("/login",
+             response_model=Token,
+             status_code=status.HTTP_200_OK)
 def login(user_data: UserLogin, db: Session = Depends(get_db)):
     user = get_user_by_username(db, user_data.username)
 
@@ -177,15 +185,16 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
     return response
 
 
-@router.post("/refresh", response_model=Token)
+@router.post("/refresh",
+             response_model=Token,
+             status_code=status.HTTP_200_OK)
 def refresh_access_token(request: Request, db: Session = Depends(get_db)):
     refresh_token = request.cookies.get("refresh_token")
 
     if not refresh_token:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="Refresh token not found in cookie",
-            headers={"WWW-Authenticate": "Bearer"}
         )
 
     try:
@@ -194,7 +203,7 @@ def refresh_access_token(request: Request, db: Session = Depends(get_db)):
         token_type = payload.get("type")
     except JWTError as e:
         response = JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             content={"detail": f"Refresh token not decoded. ERR: {str(e)}"}
         )
         response.delete_cookie(key="refresh_token", httponly=True)
@@ -202,9 +211,8 @@ def refresh_access_token(request: Request, db: Session = Depends(get_db)):
 
     if (user_id is None) or (token_type != "refresh"):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid refresh token or user id",
         )
 
     user = get_user_by_id(db, int(user_id))
@@ -213,7 +221,6 @@ def refresh_access_token(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User incorrect or locked",
-            headers={"WWW-Authenticate": "Bearer"},
         )
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -228,7 +235,9 @@ def refresh_access_token(request: Request, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/logout")
+@router.post("/logout",
+             response_model=None,
+             status_code=status.HTTP_200_OK)
 def logout():
     response = JSONResponse(
         status_code=status.HTTP_200_OK,
@@ -236,47 +245,52 @@ def logout():
     )
     response.delete_cookie(
         key="refresh_token",
-        secure=False,  # согласовано с login
+        secure=False,
         httponly=True
     )
     return response
 
 
-@router.get("/users/me", response_model=UserResponse)
+@router.get("/users/me",
+            response_model=UserResponse,
+            status_code=status.HTTP_200_OK)
 def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
 # === CODE ANALYSIS & CHAT ENDPOINTS ===
 
-@router.post(
-    path="/analyze-code",
-    response_model=CodeAnalysisResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Анализ кода с помощью ML",
-    description="Отправляет код на анализ в ML-сервис и возвращает результаты"
-)
-async def send_code_for_analyze(
-    request: CodeAnalysisRequest,
-    current_user: User = Depends(get_current_user)
-):
-    ml_response = await ml_client.analyze_code(request.code)
+# @router.post(
+#     path="/analyze-code",
+#     response_model=CodeAnalysisResponse,
+#     status_code=status.HTTP_200_OK,
+#     summary="Анализ кода с помощью ML",
+#     description="Отправляет код на анализ в ML-сервис и возвращает результаты"
+# )
+# async def send_code_for_analyze(
+#     request: CodeAnalysisRequest,
+#     current_user: User = Depends(get_current_user)
+# ):
+#     #TODO: возможно это то место где нужно организовать отправку кода в мл,
+#     # если не в другом месте нигде
+#     ml_response = await ml_client.analyze_code(request.code)
+#
+#     return CodeAnalysisResponse(
+#         analysis=ml_response["analysis"],
+#         status=ml_response["status"],
+#         language=request.language,
+#         timestamp=datetime.utcnow().isoformat()
+#     )
 
-    return CodeAnalysisResponse(
-        analysis=ml_response["analysis"],
-        status=ml_response["status"],
-        language=request.language,
-        timestamp=datetime.utcnow().isoformat()
-    )
 
-
-@router.post("/message", response_model=MessageResponse)
+@router.post("/message",
+             response_model=MessageResponse,
+             status_code=status.HTTP_200_OK)
 async def send_message(
     request: MessageCreateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Найти или создать беседу
     conversation = None
     if request.conversation_id:
         conversation = db.query(Conversation).filter(
@@ -293,7 +307,7 @@ async def send_message(
         conversation = Conversation(
             user_id=current_user.id,
             title=title,
-            language=request.language or "python"
+            language=request.language
         )
         db.add(conversation)
         db.commit()
@@ -321,9 +335,8 @@ async def send_message(
     # Ответ от ассистента
     assistant_message = Message(
         conversation_id=conversation.id,
-        body=request.body,
+        body=ml_content,
         role="assistant",
-        content=ml_content,
         is_error=(ml_status != "success")
     )
     db.add(assistant_message)
@@ -340,7 +353,9 @@ async def send_message(
     )
 
 
-@router.post("/load_file", response_model=FileUploadResponse)
+@router.post("/load_file",
+             response_model=FileUploadResponse,
+             status_code=status.HTTP_200_OK)
 async def load_code_file(
     file: UploadFile = File(...),
     conversation_id: int | None = None,
@@ -426,64 +441,66 @@ async def load_code_file(
     )
 
 
-@router.post("/answer", response_model=MessageResponse)
-async def send_followup_answer(
-    request: MessageCreateRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    if not request.conversation_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="conversation_id is required for /answer"
-        )
-
-    conversation = db.query(Conversation).filter(
-        Conversation.id == request.conversation_id,
-        Conversation.user_id == current_user.id
-    ).first()
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    # Сообщение от пользователя
-    user_message = Message(
-        conversation_id=conversation.id,
-        body=request.body,
-        role="user"
-    )
-    db.add(user_message)
-    db.commit()
-    db.refresh(user_message)
-
-    # Анализ
-    try:
-        ml_response = await ml_client.analyze_code(request.body)
-        ml_content = ml_response.get("analysis", "No analysis returned")
-        ml_status = ml_response.get("status", "error")
-    except Exception as e:
-        ml_content = f"Ошибка ML-сервиса: {str(e)}"
-        ml_status = "error"
-
-    # Ответ
-    assistant_message = Message(
-        conversation_id=conversation.id,
-        body=request.body,
-        role="assistant",
-        content=ml_content,
-        is_error=(ml_status != "success")
-    )
-    db.add(assistant_message)
-    db.commit()
-    db.refresh(assistant_message)
-
-    return MessageResponse(
-        id=assistant_message.id,
-        conversation_id=conversation.id,
-        body=assistant_message.body,
-        role=assistant_message.role,
-        content=assistant_message.content,
-        created_at=assistant_message.created_at.isoformat()
-    )
+# @router.post("/answer",
+#              response_model=MessageResponse,
+#              status_code=status.HTTP_200_OK)
+# async def send_followup_answer(
+#     request: MessageCreateRequest,
+#     current_user: User = Depends(get_current_user),
+#     db: Session = Depends(get_db)
+# ):
+#     if not request.conversation_id:
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail="conversation_id is required for /answer"
+#         )
+#
+#     conversation = db.query(Conversation).filter(
+#         Conversation.id == request.conversation_id,
+#         Conversation.user_id == current_user.id
+#     ).first()
+#     if not conversation:
+#         raise HTTPException(status_code=404, detail="Conversation not found")
+#
+#     # Сообщение от пользователя
+#     user_message = Message(
+#         conversation_id=conversation.id,
+#         body=request.body,
+#         role="user"
+#     )
+#     db.add(user_message)
+#     db.commit()
+#     db.refresh(user_message)
+#
+#     # Анализ
+#     try:
+#         ml_response = await ml_client.analyze_code(request.body)
+#         ml_content = ml_response.get("analysis", "No analysis returned")
+#         ml_status = ml_response.get("status", "error")
+#     except Exception as e:
+#         ml_content = f"Ошибка ML-сервиса: {str(e)}"
+#         ml_status = "error"
+#
+#     # Ответ
+#     assistant_message = Message(
+#         conversation_id=conversation.id,
+#         body=request.body,
+#         role="assistant",
+#         content=ml_content,
+#         is_error=(ml_status != "success")
+#     )
+#     db.add(assistant_message)
+#     db.commit()
+#     db.refresh(assistant_message)
+#
+#     return MessageResponse(
+#         id=assistant_message.id,
+#         conversation_id=conversation.id,
+#         body=assistant_message.body,
+#         role=assistant_message.role,
+#         content=assistant_message.content,
+#         created_at=assistant_message.created_at.isoformat()
+#     )
 
 
 # === HEALTH CHECKS ===

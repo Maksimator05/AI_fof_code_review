@@ -1,19 +1,16 @@
-# backend/app/schemas/code_analysis.py
-
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
-class CodeAnalysisRequest(BaseModel):
-    code: str
-    language: Optional[str] = "python"
+# class CodeAnalysisRequest(BaseModel):
+#     code: str
+#     language: Optional[str] = "python"
+#
+# class CodeAnalysisResponse(BaseModel):
+#     analysis: str
+#     status: str
+#     language: Optional[str] = "python"
+#     timestamp: str
 
-class CodeAnalysisResponse(BaseModel):
-    analysis: str
-    status: str
-    language: Optional[str] = "python"
-    timestamp: str
-
-# --- НОВЫЕ СХЕМЫ ДЛЯ ЧАТА ---
 class MessageCreateRequest(BaseModel):
     conversation_id: Optional[int] = None  # если None — создаётся новая беседа
     body: str = Field(..., min_length=1)   # текст сообщения (может содержать код или вопрос)
