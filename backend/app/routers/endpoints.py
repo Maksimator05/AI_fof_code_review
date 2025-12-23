@@ -505,12 +505,16 @@ async def load_code_file(
 
 # === HEALTH CHECKS ===
 
-@router.get("/health-api", status_code=status.HTTP_200_OK)
+@router.get("/health-api",
+            response_model=None,
+            status_code=status.HTTP_200_OK)
 def get_api_health():
     return JSONResponse(content={"message": "API is running"})
 
 
-@router.get("/health-ml", status_code=status.HTTP_200_OK)
+@router.get("/health-ml",
+            response_model=None,
+            status_code=status.HTTP_200_OK)
 async def get_ml_health():
     try:
         await ml_client.check_health()
@@ -526,6 +530,7 @@ async def get_ml_health():
                 "status": "unavailable",
                 "timestamp": datetime.utcnow().isoformat(),
                 "detail": str(e)
-            }
+            },
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE
         )
     return response
