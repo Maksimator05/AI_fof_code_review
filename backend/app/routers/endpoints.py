@@ -38,7 +38,7 @@ from backend.app.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     REFRESH_TOKEN_EXPIRE_DAYS
 )
-from backend.app.clients.ml_client import ml_client
+from backend.app.clients import ml_client
 
 
 router = APIRouter()
@@ -529,7 +529,7 @@ async def get_ml_health():
             content={
                 "status": "unavailable",
                 "timestamp": datetime.utcnow().isoformat(),
-                "detail": str(e)
+                "message": e.detail
             },
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE
         )

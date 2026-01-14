@@ -3,8 +3,8 @@ from typing import Dict, Any
 from fastapi import HTTPException, status
 
 
-ML_SERVICE_URL = "http://localhost:8000"
-ML_SERVICE_TIMEOUT_SEC = 10
+ML_SERVICE_URL = "http://127.0.0.1:8000"
+ML_SERVICE_TIMEOUT_SEC = 15
 ML_ANALYSIS_TIMEOUT_SEC = 300
 
 
@@ -22,6 +22,11 @@ class MLClient:
                 )
                 response.raise_for_status()
                 return response.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=e.response.json()
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
