@@ -22,8 +22,6 @@ from backend.app.schemas.user import (
     Token
 )
 from backend.app.schemas.code_analysis import (
-    # CodeAnalysisRequest,
-    # CodeAnalysisResponse,
     MessageCreateRequest,
     MessageResponse,
     FileUploadResponse
@@ -260,28 +258,6 @@ def read_users_me(current_user: User = Depends(get_current_user)):
 
 # === CODE ANALYSIS & CHAT ENDPOINTS ===
 
-# @router.post(
-#     path="/analyze-code",
-#     response_model=CodeAnalysisResponse,
-#     status_code=status.HTTP_200_OK,
-#     summary="Анализ кода с помощью ML",
-#     description="Отправляет код на анализ в ML-сервис и возвращает результаты"
-# )
-# async def send_code_for_analyze(
-#     request: CodeAnalysisRequest,
-#     current_user: User = Depends(get_current_user)
-# ):
-#     #TODO: возможно это то место где нужно организовать отправку кода в мл,
-#     # если не в другом месте нигде
-#     ml_response = await ml_client.analyze_code(request.code)
-#
-#     return CodeAnalysisResponse(
-#         analysis=ml_response["analysis"],
-#         status=ml_response["status"],
-#         language=request.language,
-#         timestamp=datetime.utcnow().isoformat()
-#     )
-
 
 @router.post("/message",
              response_model=MessageResponse,
@@ -439,68 +415,6 @@ async def load_code_file(
             created_at=assistant_message.created_at.isoformat()
         )
     )
-
-
-# @router.post("/answer",
-#              response_model=MessageResponse,
-#              status_code=status.HTTP_200_OK)
-# async def send_followup_answer(
-#     request: MessageCreateRequest,
-#     current_user: User = Depends(get_current_user),
-#     db: Session = Depends(get_db)
-# ):
-#     if not request.conversation_id:
-#         raise HTTPException(
-#             status_code=status.HTTP_400_BAD_REQUEST,
-#             detail="conversation_id is required for /answer"
-#         )
-#
-#     conversation = db.query(Conversation).filter(
-#         Conversation.id == request.conversation_id,
-#         Conversation.user_id == current_user.id
-#     ).first()
-#     if not conversation:
-#         raise HTTPException(status_code=404, detail="Conversation not found")
-#
-#     # Сообщение от пользователя
-#     user_message = Message(
-#         conversation_id=conversation.id,
-#         body=request.body,
-#         role="user"
-#     )
-#     db.add(user_message)
-#     db.commit()
-#     db.refresh(user_message)
-#
-#     # Анализ
-#     try:
-#         ml_response = await ml_client.analyze_code(request.body)
-#         ml_content = ml_response.get("analysis", "No analysis returned")
-#         ml_status = ml_response.get("status", "error")
-#     except Exception as e:
-#         ml_content = f"Ошибка ML-сервиса: {str(e)}"
-#         ml_status = "error"
-#
-#     # Ответ
-#     assistant_message = Message(
-#         conversation_id=conversation.id,
-#         body=request.body,
-#         role="assistant",
-#         content=ml_content,
-#         is_error=(ml_status != "success")
-#     )
-#     db.add(assistant_message)
-#     db.commit()
-#     db.refresh(assistant_message)
-#
-#     return MessageResponse(
-#         id=assistant_message.id,
-#         conversation_id=conversation.id,
-#         body=assistant_message.body,
-#         role=assistant_message.role,
-#         content=assistant_message.content,
-#         created_at=assistant_message.created_at.isoformat()
-#     )
 
 
 # === HEALTH CHECKS ===
