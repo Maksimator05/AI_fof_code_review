@@ -35,7 +35,7 @@ pip install -r requirements.txt
 SECRET_KEY=your-secret-key
 ```
 
-4. **Запуск сервера**
+3.**Запуск сервера**
 ```bash
 python -m backend.app.main
 ```
