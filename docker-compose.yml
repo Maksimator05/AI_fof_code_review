@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # PostgreSQL база данных
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: code_review_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  # Redis кэш
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+
+  # ML сервис
+  ml-service:
+    build:
+      context: ./ml-module
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/code_review_db
+      - SECRET_KEY=dev-secret-key-change-in-production
+    volumes:
+      - ./ml-module:/app
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Бекенд API - ИСПРАВЛЕННЫЙ
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile  # Используем отдельный Dockerfile для разработки
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/code_review_db
+      - REDIS_URL=redis://redis:6379
+      - ML_SERVICE_URL=http://ml-module:8000
+      - LM_STUDIO_URL=http://host.docker.internal:1234  # Локальный LM Studio
+      - LM_STUDIO_ENABLED=true
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - IP=0.0.0.0
+      - PYTHONPATH=/app  # КРИТИЧЕСКИ ВАЖНО!
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./backend:/app  # Монтируем код
+    networks:
+      - app-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # ИЗМЕНЕННАЯ КОМАНДА - запускаем напрямую app.main
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Фронтенд (React с Create React App)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_ML_SERVICE_URL=http://localhost:8001
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - app-network
+    stdin_open: true
+    tty: true
+    command: npm start
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

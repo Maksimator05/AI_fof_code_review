@@ -18,7 +18,7 @@ class ModelResponse(BaseModel):
 @app.get("/Проверка работы модели")
 def check():
     try:
-        response = requests.get("http://26.203.117.181:1234/v1/models", timeout=10)
+        response = requests.get("http://localhost:1234/v1/models", timeout=10)
         return {"status": "healthy", "message": "Сервис анализа кода работает"}
     except Exception as e:
         raise HTTPException(status_code=500, detail="Ошибка подключения к модели")
@@ -44,7 +44,7 @@ def send_code(request: CodeRequest):
 
     try:
         response = requests.post(
-            "http://26.203.117.181:1234/v1/chat/completions",
+            "http://localhost:1234/v1/chat/completions",
             json=payload,
             timeout=240
         )

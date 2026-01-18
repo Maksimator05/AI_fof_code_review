@@ -1,21 +1,15 @@
-FROM node:18-alpine AS builder
+FROM node:18-alpine
 
 WORKDIR /app
 
 COPY package*.json ./
-COPY tsconfig.json ./
-COPY public/ ./public/
-COPY src/ ./src/
-COPY tailwind.config.js ./
-COPY postcss.config.js ./
-
 RUN npm ci
-
+COPY . .
 RUN npm run build
 
-FROM nginx:alpine
+# Устанавливаем serve
+RUN npm install -g serve
 
-COPY --from=builder /app/build /usr/share/nginx/html
+EXPOSE 3000
 
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["serve", "-s", "build", "-l", "3000"]
