@@ -1,9 +1,11 @@
+import os
+
 import httpx
 from typing import Dict, Any
 from fastapi import HTTPException, status
 
 
-ML_SERVICE_URL = "http://127.0.0.1:8000"
+ML_SERVICE_URL = os.getenv("ML_SERVICE_URL")
 ML_SERVICE_TIMEOUT_SEC = 15
 ML_ANALYSIS_TIMEOUT_SEC = 300
 

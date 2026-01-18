@@ -23,7 +23,7 @@ services:
     networks:
       - app-network
 
-  # ML сервис
+  # ML сервис - единственный, кто общается с LM Studio
   ml-service:
     build:
       context: ./ml-module
@@ -33,44 +33,45 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/code_review_db
       - SECRET_KEY=dev-secret-key-change-in-production
+      - LM_STUDIO_URL=http://host.docker.internal:1234  # ML общается с LM Studio
+      - LM_STUDIO_ENABLED=true
     volumes:
       - ./ml-module:/app
     networks:
       - app-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Доступ к локальному хосту
     restart: unless-stopped
 
-  # Бекенд API - ИСПРАВЛЕННЫЙ
+  # Бекенд API - общается только с ML-сервисом
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile  # Используем отдельный Dockerfile для разработки
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/code_review_db
       - REDIS_URL=redis://redis:6379
-      - ML_SERVICE_URL=http://ml-module:8000
-      - LM_STUDIO_URL=http://host.docker.internal:1234  # Локальный LM Studio
-      - LM_STUDIO_ENABLED=true
+      - ML_SERVICE_URL=http://ml-service:8000
       - SECRET_KEY=dev-secret-key-change-in-production
       - ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
       - IP=0.0.0.0
-      - PYTHONPATH=/app  # КРИТИЧЕСКИ ВАЖНО!
+      - PYTHONPATH=/app
       - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
     depends_on:
       - postgres
       - redis
+      - ml-service
     volumes:
-      - ./backend:/app  # Монтируем код
+      - ./backend:/app
     networks:
       - app-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    # ИЗМЕНЕННАЯ КОМАНДА - запускаем напрямую app.main
+    # УБРАЛИ extra_hosts - backend не нуждается в доступе к локальному хосту
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # Фронтенд (React с Create React App)
+  # Фронтенд
   frontend:
     build:
       context: ./frontend
@@ -79,9 +80,7 @@ services:
       - "3000:3000"
     environment:
       - REACT_APP_API_URL=http://localhost:8000
-      - REACT_APP_ML_SERVICE_URL=http://localhost:8001
-      - CHOKIDAR_USEPOLLING=true
-      - WATCHPACK_POLLING=true
+      # УБРАЛИ ML_SERVICE_URL - frontend общается только с backend
     volumes:
       - ./frontend:/app
       - /app/node_modules

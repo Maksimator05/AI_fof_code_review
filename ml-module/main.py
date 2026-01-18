@@ -1,3 +1,5 @@
+import os
+
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -5,6 +7,7 @@ import requests
 
 app = FastAPI()
 
+LM_STUDIO_URL = os.getenv("LM_STUDIO_URL")
 
 class CodeRequest(BaseModel):
     code: str
@@ -18,7 +21,7 @@ class ModelResponse(BaseModel):
 @app.get("/Проверка работы модели")
 def check():
     try:
-        response = requests.get("http://localhost:1234/v1/models", timeout=10)
+        response = requests.get(f"{LM_STUDIO_URL}/v1/models", timeout=10)
         return {"status": "healthy", "message": "Сервис анализа кода работает"}
     except Exception as e:
         raise HTTPException(status_code=500, detail="Ошибка подключения к модели")
@@ -44,7 +47,7 @@ def send_code(request: CodeRequest):
 
     try:
         response = requests.post(
-            "http://localhost:1234/v1/chat/completions",
+            f"{LM_STUDIO_URL}/v1/chat/completions",
             json=payload,
             timeout=240
         )
