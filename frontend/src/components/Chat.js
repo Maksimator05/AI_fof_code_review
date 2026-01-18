@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
-import Header from './Header';
+import { useAuth } from '../contexts/AuthContext';
+import axios from 'axios';
 
 function Chat() {
-  // Получаем текущую тему для применения dark mode классов
   const { theme } = useTheme();
+  const { user } = useAuth();
   
   // Состояние для управления чатами и сообщениями
   const [chats, setChats] = useState([
@@ -35,38 +36,26 @@ function Chat() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); // Состояние боковой панели
   const [editingChatId, setEditingChatId] = useState(null); // ID чата в режиме редактирования
   const [editTitle, setEditTitle] = useState(''); // Временное значение для редактирования названия
+  const [isLoading, setIsLoading] = useState(false); // Состояние загрузки
 
   /**
-   * Генерирует название чата на основе содержания первого сообщения
-   * @param {string} message - текст сообщения
-   * @returns {string} - сгенерированное название чата
+   * Загружает беседы с сервера
    */
-  const generateChatTitle = (message) => {
-    const messageText = message.trim();
-    
-    // Определяем тему чата по ключевым словам в сообщении
-    if (messageText.includes('python') || messageText.includes('Python') || messageText.includes('print')) {
-      return 'Анализ Python кода';
-    } else if (messageText.includes('javascript') || messageText.includes('JavaScript') || messageText.includes('js') || messageText.includes('JS')) {
-      return 'Анализ JavaScript кода';
-    } else if (messageText.includes('java') || messageText.includes('Java')) {
-      return 'Анализ Java кода';
-    } else if (messageText.includes('html') || messageText.includes('HTML') || messageText.includes('<div>')) {
-      return 'Анализ HTML кода';
-    } else if (messageText.includes('css') || messageText.includes('CSS') || messageText.includes('{')) {
-      return 'Анализ CSS кода';
-    } else if (messageText.includes('sql') || messageText.includes('SQL') || messageText.includes('SELECT')) {
-      return 'Анализ SQL запроса';
-    } else if (messageText.includes('ошибка') || messageText.includes('error') || messageText.includes('bug')) {
-      return 'Поиск ошибок';
-    } else if (messageText.includes('оптимизация') || messageText.includes('optimize') || messageText.includes('улучшить')) {
-      return 'Оптимизация кода';
+  const loadConversations = async () => {
+    try {
+      // TODO: Добавить endpoint для получения списка бесед
+      // const response = await axios.get('/conversations');
+      // setChats(response.data);
+    } catch (error) {
+      console.error('Ошибка загрузки бесед:', error);
     }
-    
-    // Если не удалось определить тему, берем первые слова сообщения
-    const words = messageText.split(' ').slice(0, 3).join(' ');
-    return words || 'Новый чат';
   };
+
+  useEffect(() => {
+    if (user) {
+      loadConversations();
+    }
+  }, [user]);
 
   /**
    * Создает новый пустой чат
@@ -85,15 +74,12 @@ function Chat() {
 
   /**
    * Удаляет чат по ID
-   * @param {number} chatId - ID чата для удаления
-   * @param {Event} e - событие клика
    */
   const deleteChat = (chatId, e) => {
-    e.stopPropagation(); // Предотвращаем всплытие события
+    e.stopPropagation();
     const updatedChats = chats.filter(chat => chat.id !== chatId);
     setChats(updatedChats);
     
-    // Корректируем активный чат после удаления
     if (updatedChats.length === 0) {
       setActiveChat(null);
     } else if (activeChat >= updatedChats.length) {
@@ -103,8 +89,6 @@ function Chat() {
 
   /**
    * Начинает редактирование названия чата
-   * @param {Object} chat - объект чата
-   * @param {Event} e - событие клика
    */
   const startEditingTitle = (chat, e) => {
     e.stopPropagation();
@@ -114,8 +98,6 @@ function Chat() {
 
   /**
    * Сохраняет измененное название чата
-   * @param {number} chatId - ID чата
-   * @param {Event} e - событие клика
    */
   const saveEditedTitle = (chatId, e) => {
     e.stopPropagation();
@@ -131,7 +113,6 @@ function Chat() {
 
   /**
    * Отменяет редактирование названия
-   * @param {Event} e - событие клика
    */
   const cancelEditing = (e) => {
     e.stopPropagation();
@@ -140,81 +121,173 @@ function Chat() {
   };
 
   /**
-   * Обрабатывает отправку нового сообщения
-   * @param {Event} e - событие отправки формы
+   * Отправляет сообщение на сервер
    */
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (newMessage.trim() && chats[activeChat]) {
-      const updatedChats = [...chats];
-      const currentChat = updatedChats[activeChat];
+    
+    if (!newMessage.trim() || !chats[activeChat] || isLoading) return;
+    
+    setIsLoading(true);
+    
+    try {
+      const currentChat = chats[activeChat];
       
-      // Создаем новое сообщение пользователя
-      const userMessage = {
+      // Создаем временное сообщение пользователя
+      const tempUserMessage = {
         id: Date.now(),
         type: 'user',
         content: newMessage,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        attachments: [] // Заготовка для будущих вложений
       };
 
-      currentChat.messages.push(userMessage);
+      // Обновляем UI сразу
+      const updatedChats = [...chats];
+      updatedChats[activeChat].messages.push(tempUserMessage);
       
-      // Если это первое сообщение в чате, генерируем название и описание
-      if (currentChat.messages.length === 1) {
-        currentChat.title = generateChatTitle(newMessage);
-        currentChat.description = newMessage.substring(0, 40) + (newMessage.length > 40 ? '...' : '');
-      } else {
-        // Обновляем описание последним сообщением
-        currentChat.description = newMessage.substring(0, 40) + (newMessage.length > 40 ? '...' : '');
+      // Если это первое сообщение в чате, обновляем название
+      if (currentChat.messages.length === 0) {
+        updatedChats[activeChat].title = generateChatTitle(newMessage);
       }
-
+      updatedChats[activeChat].description = newMessage.substring(0, 40) + (newMessage.length > 40 ? '...' : '');
+      
       setChats(updatedChats);
+      const messageText = newMessage;
       setNewMessage(''); // Очищаем поле ввода
 
-      // Имитация ответа AI с задержкой
-      setTimeout(() => {
-        const aiResponse = {
-          id: Date.now() + 1,
-          type: 'assistant',
-          content: getAIResponse(newMessage),
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        
-        const finalChats = [...updatedChats];
-        finalChats[activeChat].messages.push(aiResponse);
-        finalChats[activeChat].unreadCount += 1;
-        setChats(finalChats);
-      }, 1000);
+      // Отправляем на сервер
+      const response = await axios.post('/message', {
+        body: messageText,
+        language: 'python'
+      });
+
+      // Обновляем с ответом от сервера
+      const finalChats = [...updatedChats];
+      finalChats[activeChat].messages.push({
+        id: response.data.id,
+        type: 'assistant',
+        content: response.data.body,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      });
+      
+      // Если это новый чат (без conversation_id), обновляем ID
+      if (!currentChat.conversationId && response.data.conversation_id) {
+        finalChats[activeChat].conversationId = response.data.conversation_id;
+      }
+      
+      setChats(finalChats);
+      
+    } catch (error) {
+      console.error('Ошибка отправки сообщения:', error);
+      
+      // Показываем сообщение об ошибке
+      const errorChats = [...chats];
+      errorChats[activeChat].messages.push({
+        id: Date.now() + 1,
+        type: 'assistant',
+        content: `Ошибка: ${error.response?.data?.detail || error.message || 'Неизвестная ошибка'}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isError: true
+      });
+      setChats(errorChats);
+      
+    } finally {
+      setIsLoading(false);
     }
   };
 
   /**
-   * Генерирует ответ AI на основе сообщения пользователя
-   * @param {string} userMessage - сообщение пользователя
-   * @returns {string} - ответ AI
+   * Обрабатывает загрузку файла
    */
-  const getAIResponse = (userMessage) => {
-    const message = userMessage.toLowerCase();
+  const handleFileAttach = async () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.py,.js,.ts,.java,.cpp,.c,.cs,.go,.rs,.html,.css,.json,.xml';
     
-    // Генерируем контекстные ответы в зависимости от содержания сообщения
-    if (message.includes('python') || message.includes('print')) {
-      return `Проанализировал ваш Python код. Заметил несколько моментов для улучшения:\n\n• Рекомендую использовать современный синтаксис Python\n• Обратите внимание на отступы и стиль кода\n• Рассмотрите обработку исключений\n\nХотите более детальный анализ?`;
-    } else if (message.includes('javascript') || message.includes('js')) {
-      return `Анализ JavaScript кода выполнен. Основные рекомендации:\n\n• Проверьте области видимости переменных\n• Рекомендую использовать const/let вместо var\n• Обратите внимание на асинхронные операции\n\nНужна помощь с конкретной ошибкой?`;
-    } else if (message.includes('ошибка') || message.includes('error')) {
-      return `Помогу найти ошибку в вашем коде. Для более точного анализа:\n\n• Прикрепите полный код файла\n• Укажите текст ошибки\n• Опишите ожидаемое поведение\n\nЧто именно не работает?`;
-    } else {
-      return `Проанализировал ваш запрос. Готов помочь с:\n\n• Поиском и исправлением ошибок\n• Оптимизацией производительности\n• Улучшением архитектуры кода\n• Code review лучших практик\n\nЧто конкретно вас интересует?`;
-    }
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      // Проверка расширения
+      const allowedExt = ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.cs', '.go', '.rs', '.html', '.css', '.json', '.xml'];
+      const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+      
+      if (!allowedExt.includes(fileExt)) {
+        alert('Неподдерживаемый тип файла. Пожалуйста, загрузите файл с кодом.');
+        return;
+      }
+      
+      setIsLoading(true);
+      
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await axios.post('/load_file', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+        
+        // Создаем новый чат или обновляем существующий
+        if (response.data.conversation_id) {
+          const newChat = {
+            id: Date.now(),
+            conversationId: response.data.conversation_id,
+            title: `Анализ: ${file.name}`,
+            description: `Файл: ${file.name}`,
+            unreadCount: 1,
+            messages: [
+              {
+                id: response.data.message.id,
+                type: 'assistant',
+                content: response.data.message.body,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              }
+            ]
+          };
+          
+          setChats([...chats, newChat]);
+          setActiveChat(chats.length);
+        }
+        
+      } catch (error) {
+        console.error('Ошибка загрузки файла:', error);
+        alert(`Ошибка загрузки файла: ${error.response?.data?.detail || error.message}`);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    input.click();
   };
 
   /**
-   * Обрабатывает прикрепление файла (заглушка для будущей реализации)
+   * Генерирует название чата на основе содержания первого сообщения
    */
-  const handleFileAttach = () => {
-    console.log('Функция прикрепления файла будет реализована позже');
-    // TODO: Реализовать логику выбора и прикрепления файлов
+  const generateChatTitle = (message) => {
+    const messageText = message.trim();
+    
+    if (messageText.includes('python') || messageText.includes('Python') || messageText.includes('print')) {
+      return 'Анализ Python кода';
+    } else if (messageText.includes('javascript') || messageText.includes('JavaScript') || messageText.includes('js') || messageText.includes('JS')) {
+      return 'Анализ JavaScript кода';
+    } else if (messageText.includes('java') || messageText.includes('Java')) {
+      return 'Анализ Java кода';
+    } else if (messageText.includes('html') || messageText.includes('HTML') || messageText.includes('<div>')) {
+      return 'Анализ HTML кода';
+    } else if (messageText.includes('css') || messageText.includes('CSS') || messageText.includes('{')) {
+      return 'Анализ CSS кода';
+    } else if (messageText.includes('sql') || messageText.includes('SQL') || messageText.includes('SELECT')) {
+      return 'Анализ SQL запроса';
+    } else if (messageText.includes('ошибка') || messageText.includes('error') || messageText.includes('bug')) {
+      return 'Поиск ошибок';
+    } else if (messageText.includes('оптимизация') || messageText.includes('optimize') || messageText.includes('улучшить')) {
+      return 'Оптимизация кода';
+    }
+    
+    const words = messageText.split(' ').slice(0, 3).join(' ');
+    return words || 'Новый чат';
   };
 
   const currentChat = chats[activeChat];
@@ -381,25 +454,20 @@ function Chat() {
                           className={`max-w-2xl rounded-2xl p-4 ${
                             message.type === 'user'
                               ? 'bg-blue-600 text-white rounded-br-none'
+                              : message.isError
+                              ? 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded-bl-none'
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none'
                           }`}
                         >
                           {/* Текст сообщения с сохранением форматирования */}
                           <pre className="whitespace-pre-wrap font-sans">{message.content}</pre>
-                          
-                          {/* Индикатор прикрепленных файлов */}
-                          {message.attachments && message.attachments.length > 0 && (
-                            <div className="mt-2">
-                              <div className="text-xs opacity-75">
-                                Прикрепленные файлы: {message.attachments.length}
-                              </div>
-                            </div>
-                          )}
-                          
+
                           {/* Время отправки сообщения */}
                           <div className={`text-xs mt-2 ${
                             message.type === 'user' 
                               ? 'text-blue-200' 
+                              : message.isError
+                              ? 'text-red-600 dark:text-red-300'
                               : 'text-gray-500 dark:text-gray-400'
                           }`}>
                             {message.timestamp}
@@ -423,7 +491,8 @@ function Chat() {
                     <button
                       type="button"
                       onClick={handleFileAttach}
-                      className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 w-12 h-12 rounded-lg flex items-center justify-center transition-colors"
+                      disabled={isLoading}
+                      className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 w-12 h-12 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Прикрепить файл"
                     >
                       📎
@@ -435,16 +504,25 @@ function Chat() {
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       placeholder="Написать сообщение..."
-                      className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                      disabled={isLoading}
+                      className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors disabled:opacity-50"
                     />
                     
                     {/* Кнопка отправки сообщения */}
                     <button
                       type="submit"
-                      disabled={!newMessage.trim()}
-                      className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                      disabled={!newMessage.trim() || isLoading}
+                      className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-medium transition-colors relative"
                     >
-                      Отправить
+                      {isLoading ? (
+                        <span className="flex items-center">
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Отправка...
+                        </span>
+                      ) : 'Отправить'}
                     </button>
                   </form>
                 </div>

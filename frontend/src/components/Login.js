@@ -1,22 +1,24 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import Header from './Header'; // Импортируем Header для использования на странице
-import { useTheme } from '../contexts/ThemeContext'; // Для поддержки темной темы
+import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext'; // Добавлен импорт
 
 function Login() {
-  // Получаем текущую тему для применения соответствующих стилей
   const { theme } = useTheme();
+  const { login, error: authError } = useAuth(); // Получаем функцию login и ошибку из контекста
   
   // Состояние для хранения данных формы входа
   const [formData, setFormData] = useState({
-    email: '',
+    username: '', // Изменено с email на username для соответствия API
     password: ''
   });
+  
+  const [loading, setLoading] = useState(false);
+  const [localError, setLocalError] = useState(null);
 
   /**
    * Обрабатывает изменение значений полей формы
-   * @param {Event} e - событие изменения input
-   */
+  */
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({
@@ -27,13 +29,33 @@ function Login() {
 
   /**
    * Обрабатывает отправку формы входа
-   * @param {Event} e - событие отправки формы
-   */
-  const handleSubmit = (e) => {
+  */
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Login data:', formData);
-    // TODO: Реализовать логику аутентификации с бэкендом
-    // Например: отправка запроса на API, обработка ответа, редирект
+    
+    if (!formData.username.trim() || !formData.password.trim()) {
+      setLocalError('Заполните все поля');
+      return;
+    }
+    
+    setLoading(true);
+    setLocalError(null);
+    
+    try {
+      const result = await login(formData.username, formData.password);
+      
+      if (result.success) {
+        // Перенаправление произойдет автоматически через AuthContext
+        // Можно добавить дополнительную логику если нужно
+      } else {
+        setLocalError(result.error || 'Ошибка входа');
+      }
+    } catch (error) {
+      setLocalError('Произошла непредвиденная ошибка');
+      console.error('Login error:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -54,24 +76,32 @@ function Login() {
             </h2>
           </div>
 
+          {/* Показать ошибки если есть */}
+          {(localError || authError) && (
+            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg">
+              {localError || authError}
+            </div>
+          )}
+
           {/* Форма входа */}
           <form className="mt-8 space-y-6 bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg transition-colors duration-200" onSubmit={handleSubmit}>
             
             {/* Поля формы */}
             <div className="space-y-4">
-              {/* Поле для email */}
+              {/* Поле для имени пользователя */}
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Электронная почта
+                <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Имя пользователя
                 </label>
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
+                  id="username"
+                  name="username"
+                  type="text"
                   required
-                  className="appearance-none relative block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
-                  placeholder="example@mail.com"
-                  value={formData.email}
+                  disabled={loading}
+                  className="appearance-none relative block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50"
+                  placeholder="Введите имя пользователя"
+                  value={formData.username}
                   onChange={handleChange}
                 />
               </div>
@@ -86,7 +116,8 @@ function Login() {
                   name="password"
                   type="password"
                   required
-                  className="appearance-none relative block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
+                  disabled={loading}
+                  className="appearance-none relative block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50"
                   placeholder="Введите пароль"
                   value={formData.password}
                   onChange={handleChange}
@@ -116,9 +147,18 @@ function Login() {
               {/* Кнопка входа */}
               <button
                 type="submit"
-                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 shadow-md"
+                disabled={loading}
+                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Войти
+                {loading ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Вход...
+                  </span>
+                ) : 'Войти'}
               </button>
 
               {/* Ссылка на регистрацию для новых пользователей */}

@@ -15,20 +15,20 @@ from sqlalchemy.orm import Session
 from pydantic import EmailStr
 import os
 
-from backend.app.schemas.user import (
+from app.schemas.user import (
     UserRegister,
     UserLogin,
     UserResponse,
     Token
 )
-from backend.app.schemas.code_analysis import (
+from app.schemas.code_analysis import (
     MessageCreateRequest,
     MessageResponse,
     FileUploadResponse
 )
-from backend.app.models import User, UserSettings, Conversation, Message
-from backend.app.db.database import get_db
-from backend.app.auth import (
+from app.models import User, UserSettings, Conversation, Message
+from app.db.database import get_db
+from app.auth import (
     get_password_hash,
     verify_password,
     create_token,
@@ -36,7 +36,7 @@ from backend.app.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     REFRESH_TOKEN_EXPIRE_DAYS
 )
-from backend.app.clients import ml_client
+from app.clients import ml_client
 
 
 router = APIRouter()

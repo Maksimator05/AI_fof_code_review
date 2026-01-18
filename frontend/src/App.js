@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Header from './components/Header';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 import LanguageCard from './components/LanguageCard';
 import Registration from './components/Registration';
 import Login from './components/Login';
@@ -88,32 +90,49 @@ function App() {
   return (
     // Провайдер темы для всего приложения
     <ThemeProvider>
-      {/* Маршрутизатор для навигации между страницами */}
-      <Router>
-        {/* Общий layout приложения с поддержкой dark mode */}
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:bg-gradient-to-br dark:from-gray-900 dark:to-gray-800 transition-colors duration-200">
-          {/* Общий Header для всех страниц */}
-          <Header />
-          
-          {/* Контейнер маршрутов приложения */}
-          <Routes>
-            {/* Главная страница */}
-            <Route path="/" element={<HomePage />} />
+      {/* Провайдер аутентификации */}
+      <AuthProvider>
+        {/* Маршрутизатор для навигации между страницами */}
+        <Router>
+          {/* Общий layout приложения с поддержкой dark mode */}
+          <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:bg-gradient-to-br dark:from-gray-900 dark:to-gray-800 transition-colors duration-200">
+            {/* Общий Header для всех страниц */}
+            <Header />
             
-            {/* Страница регистрации */}
-            <Route path="/register" element={<Registration />} />
-            
-            {/* Страница входа в систему */}
-            <Route path="/login" element={<Login />} />
-            
-            {/* Страница чата с AI */}
-            <Route path="/chat" element={<Chat />} />
-            
-            {/* Страница настроек приложения */}
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
-        </div>
-      </Router>
+            {/* Контейнер маршрутов приложения */}
+            <Routes>
+              {/* Главная страница */}
+              <Route path="/" element={<HomePage />} />
+              
+              {/* Страница регистрации */}
+              <Route path="/register" element={<Registration />} />
+              
+              {/* Страница входа в систему */}
+              <Route path="/login" element={<Login />} />
+              
+              {/* Страница чата с AI */}
+              <Route 
+                path="/chat" 
+                element={
+                  <ProtectedRoute>
+                    <Chat />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              {/* Страница настроек приложения */}
+              <Route 
+                path="/settings" 
+                element={
+                  <ProtectedRoute>
+                    <Settings />
+                  </ProtectedRoute>
+                } 
+              />
+            </Routes>
+          </div>
+        </Router>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
