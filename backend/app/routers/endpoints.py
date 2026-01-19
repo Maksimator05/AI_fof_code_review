@@ -24,7 +24,10 @@ from backend.app.schemas.user import (
 from backend.app.schemas.code_analysis import (
     MessageCreateRequest,
     MessageResponse,
-    FileUploadResponse
+    FileUploadResponse,
+    ConversationResponse,
+    ConversationListItem,
+    ConversationUpdate
 )
 from backend.app.models import User, UserSettings, Conversation, Message
 from backend.app.db.database import get_db
@@ -415,6 +418,255 @@ async def load_code_file(
             created_at=assistant_message.created_at.isoformat()
         )
     )
+
+
+# === CONVERSATION MANAGEMENT ENDPOINTS ===
+
+@router.get("/conversations",
+            response_model=list[ConversationListItem],
+            status_code=status.HTTP_200_OK)
+def get_conversations(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Получить список всех разговоров пользователя"""
+    conversations = db.query(Conversation).filter(
+        Conversation.user_id == current_user.id
+    ).order_by(Conversation.updated_at.desc()).all()
+
+    result = []
+    for conv in conversations:
+        # Получаем последнее сообщение для description
+        last_message = db.query(Message).filter(
+            Message.conversation_id == conv.id
+        ).order_by(Message.created_at.desc()).first()
+
+        result.append(ConversationListItem(
+            id=conv.id,
+            title=conv.title,
+            description=last_message.body[:50] if last_message else None,
+            language=conv.language,
+            created_at=conv.created_at.isoformat(),
+            updated_at=conv.updated_at.isoformat() if conv.updated_at else None
+        ))
+
+    return result
+
+
+@router.get("/conversations/{conversation_id}",
+            response_model=ConversationResponse,
+            status_code=status.HTTP_200_OK)
+def get_conversation(
+    conversation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Получить конкретный разговор со всеми сообщениями"""
+    conversation = db.query(Conversation).filter(
+        Conversation.id == conversation_id,
+        Conversation.user_id == current_user.id
+    ).first()
+
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found"
+        )
+
+    messages = db.query(Message).filter(
+        Message.conversation_id == conversation_id
+    ).order_by(Message.created_at.asc()).all()
+
+    message_responses = [
+        MessageResponse(
+            id=msg.id,
+            conversation_id=msg.conversation_id,
+            body=msg.body,
+            role=msg.role,
+            content=msg.content,
+            created_at=msg.created_at.isoformat()
+        )
+        for msg in messages
+    ]
+
+    return ConversationResponse(
+        id=conversation.id,
+        title=conversation.title,
+        created_at=conversation.created_at.isoformat(),
+        messages=message_responses
+    )
+
+
+@router.delete("/conversations/{conversation_id}",
+               status_code=status.HTTP_204_NO_CONTENT)
+def delete_conversation(
+    conversation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Удалить разговор"""
+    conversation = db.query(Conversation).filter(
+        Conversation.id == conversation_id,
+        Conversation.user_id == current_user.id
+    ).first()
+
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found"
+        )
+
+    # Удаляем все сообщения
+    db.query(Message).filter(Message.conversation_id == conversation_id).delete()
+
+    # Удаляем разговор
+    db.delete(conversation)
+    db.commit()
+
+    return None
+
+
+@router.patch("/conversations/{conversation_id}",
+              response_model=ConversationListItem,
+              status_code=status.HTTP_200_OK)
+def update_conversation(
+    conversation_id: int,
+    update_data: ConversationUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Обновить название или язык разговора"""
+    conversation = db.query(Conversation).filter(
+        Conversation.id == conversation_id,
+        Conversation.user_id == current_user.id
+    ).first()
+
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found"
+        )
+
+    if update_data.title is not None:
+        conversation.title = update_data.title
+    if update_data.language is not None:
+        conversation.language = update_data.language
+
+    conversation.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(conversation)
+
+    # Получаем последнее сообщение для description
+    last_message = db.query(Message).filter(
+        Message.conversation_id == conversation_id
+    ).order_by(Message.created_at.desc()).first()
+
+    return ConversationListItem(
+        id=conversation.id,
+        title=conversation.title,
+        description=last_message.body[:50] if last_message else None,
+        language=conversation.language,
+        created_at=conversation.created_at.isoformat(),
+        updated_at=conversation.updated_at.isoformat() if conversation.updated_at else None
+    )
+
+
+# === USER SETTINGS ENDPOINTS ===
+
+@router.get("/users/me/settings",
+            status_code=status.HTTP_200_OK)
+def get_user_settings(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Получить настройки пользователя"""
+    settings = db.query(UserSettings).filter(
+        UserSettings.user_id == current_user.id
+    ).first()
+
+    if not settings:
+        # Создаем настройки по умолчанию если их нет
+        settings = UserSettings(user_id=current_user.id)
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+
+    return {
+        "theme": settings.theme or "light",
+        "language_preferences": settings.language_preferences or {},
+        "email_notifications": settings.email_notifications
+    }
+
+
+@router.patch("/users/me/settings",
+              status_code=status.HTTP_200_OK)
+def update_user_settings(
+    theme: str | None = None,
+    language_preferences: dict | None = None,
+    email_notifications: bool | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Обновить настройки пользователя"""
+    settings = db.query(UserSettings).filter(
+        UserSettings.user_id == current_user.id
+    ).first()
+
+    if not settings:
+        settings = UserSettings(user_id=current_user.id)
+        db.add(settings)
+
+    if theme is not None:
+        settings.theme = theme
+    if language_preferences is not None:
+        settings.language_preferences = language_preferences
+    if email_notifications is not None:
+        settings.email_notifications = email_notifications
+
+    db.commit()
+    db.refresh(settings)
+
+    return {
+        "theme": settings.theme,
+        "language_preferences": settings.language_preferences,
+        "email_notifications": settings.email_notifications
+    }
+
+
+@router.patch("/users/me",
+              response_model=UserResponse,
+              status_code=status.HTTP_200_OK)
+def update_user_profile(
+    username: str | None = None,
+    email: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Обновить профиль пользователя"""
+    if username is not None:
+        # Проверяем, не занят ли username
+        existing = get_user_by_username(db, username)
+        if existing and existing.id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already taken"
+            )
+        current_user.username = username
+
+    if email is not None:
+        # Проверяем, не занят ли email
+        existing = get_user_by_email(db, email)
+        if existing and existing.id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already taken"
+            )
+        current_user.email = email
+
+    db.commit()
+    db.refresh(current_user)
+
+    return current_user
 
 
 # === HEALTH CHECKS ===

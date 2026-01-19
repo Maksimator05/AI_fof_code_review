@@ -1,110 +1,130 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
-import Header from './Header';
+import API, { tokenManager } from '../services/api';
 
 function Chat() {
-  // Получаем текущую тему для применения dark mode классов
   const { theme } = useTheme();
-  
-  // Состояние для управления чатами и сообщениями
-  const [chats, setChats] = useState([
-    {
-      id: 1,
-      title: 'Анализ Python кода',
-      description: 'print "Hello, World!"',
-      unreadCount: 12,
-      messages: [
-        {
-          id: 1,
-          type: 'user',
-          content: 'Помоги с кодом\nprint "Hello, World!"',
-          timestamp: '12:30'
-        },
-        {
-          id: 2,
-          type: 'assistant',
-          content: `В вашем коде есть несколько ошибок. Вот правильный вариант:\n\nОценивание направления:\n• Python 3 требует скобок вокруг аргументов функции print\n• Отсутствует пробел между print и кавычкой\n• Кавычки должны быть прямыми, а не фигурными (как в "")`,
-          timestamp: '12:31'
-        }
-      ]
-    }
-  ]);
+  const navigate = useNavigate();
+  const fileInputRef = useRef(null);
+  const messagesEndRef = useRef(null);
 
-  const [activeChat, setActiveChat] = useState(0); // Индекс активного чата
-  const [newMessage, setNewMessage] = useState(''); // Текст нового сообщения
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); // Состояние боковой панели
-  const [editingChatId, setEditingChatId] = useState(null); // ID чата в режиме редактирования
-  const [editTitle, setEditTitle] = useState(''); // Временное значение для редактирования названия
+  // Состояние для управления чатами и сообщениями
+  const [chats, setChats] = useState([]);
+  const [activeChat, setActiveChat] = useState(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [editingChatId, setEditingChatId] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [error, setError] = useState('');
+
+  // Загрузка списка чатов при монтировании компонента
+  useEffect(() => {
+    loadConversations();
+  }, []);
+
+  // Автоскролл к последнему сообщению
+  useEffect(() => {
+    scrollToBottom();
+  }, [activeChat]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   /**
-   * Генерирует название чата на основе содержания первого сообщения
-   * @param {string} message - текст сообщения
-   * @returns {string} - сгенерированное название чата
+   * Загружает список всех разговоров пользователя
    */
-  const generateChatTitle = (message) => {
-    const messageText = message.trim();
-    
-    // Определяем тему чата по ключевым словам в сообщении
-    if (messageText.includes('python') || messageText.includes('Python') || messageText.includes('print')) {
-      return 'Анализ Python кода';
-    } else if (messageText.includes('javascript') || messageText.includes('JavaScript') || messageText.includes('js') || messageText.includes('JS')) {
-      return 'Анализ JavaScript кода';
-    } else if (messageText.includes('java') || messageText.includes('Java')) {
-      return 'Анализ Java кода';
-    } else if (messageText.includes('html') || messageText.includes('HTML') || messageText.includes('<div>')) {
-      return 'Анализ HTML кода';
-    } else if (messageText.includes('css') || messageText.includes('CSS') || messageText.includes('{')) {
-      return 'Анализ CSS кода';
-    } else if (messageText.includes('sql') || messageText.includes('SQL') || messageText.includes('SELECT')) {
-      return 'Анализ SQL запроса';
-    } else if (messageText.includes('ошибка') || messageText.includes('error') || messageText.includes('bug')) {
-      return 'Поиск ошибок';
-    } else if (messageText.includes('оптимизация') || messageText.includes('optimize') || messageText.includes('улучшить')) {
-      return 'Оптимизация кода';
+  const loadConversations = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { data } = await API.getConversations();
+      setChats(data || []);
+    } catch (err) {
+      console.error('Error loading conversations:', err);
+      if (err.response?.status === 401) {
+        tokenManager.removeToken();
+        navigate('/login');
+      } else {
+        setError('Ошибка загрузки истории чатов');
+      }
+    } finally {
+      setLoading(false);
     }
-    
-    // Если не удалось определить тему, берем первые слова сообщения
-    const words = messageText.split(' ').slice(0, 3).join(' ');
-    return words || 'Новый чат';
+  };
+
+  /**
+   * Загружает сообщения для конкретного чата
+   */
+  const loadConversationMessages = async (conversationId) => {
+    try {
+      const { data } = await API.getConversation(conversationId);
+      return data.messages || [];
+    } catch (err) {
+      console.error('Error loading messages:', err);
+      setError('Ошибка загрузки сообщений');
+      return [];
+    }
   };
 
   /**
    * Создает новый пустой чат
    */
   const createNewChat = () => {
-    const newChat = {
-      id: Date.now(), // Используем timestamp как уникальный ID
+    setActiveChat({
+      id: null,
       title: 'Новый чат',
       description: 'Начните общение...',
-      unreadCount: 0,
-      messages: []
-    };
-    setChats([...chats, newChat]);
-    setActiveChat(chats.length); // Активируем новый чат
+      messages: [],
+      isNew: true
+    });
+    setNewMessage('');
+  };
+
+  /**
+   * Переключается на выбранный чат
+   */
+  const selectChat = async (chat, index) => {
+    if (!chat.messages || chat.messages.length === 0) {
+      const messages = await loadConversationMessages(chat.id);
+      const updatedChats = [...chats];
+      updatedChats[index].messages = messages;
+      setChats(updatedChats);
+      setActiveChat({ ...chat, messages });
+    } else {
+      setActiveChat(chat);
+    }
   };
 
   /**
    * Удаляет чат по ID
-   * @param {number} chatId - ID чата для удаления
-   * @param {Event} e - событие клика
    */
-  const deleteChat = (chatId, e) => {
-    e.stopPropagation(); // Предотвращаем всплытие события
-    const updatedChats = chats.filter(chat => chat.id !== chatId);
-    setChats(updatedChats);
-    
-    // Корректируем активный чат после удаления
-    if (updatedChats.length === 0) {
-      setActiveChat(null);
-    } else if (activeChat >= updatedChats.length) {
-      setActiveChat(updatedChats.length - 1);
+  const deleteChat = async (chatId, e) => {
+    e.stopPropagation();
+
+    if (!window.confirm('Вы уверены, что хотите удалить этот чат?')) {
+      return;
+    }
+
+    try {
+      await API.deleteConversation(chatId);
+      const updatedChats = chats.filter(chat => chat.id !== chatId);
+      setChats(updatedChats);
+
+      if (activeChat?.id === chatId) {
+        setActiveChat(null);
+      }
+    } catch (err) {
+      console.error('Error deleting conversation:', err);
+      setError('Ошибка удаления чата');
     }
   };
 
   /**
    * Начинает редактирование названия чата
-   * @param {Object} chat - объект чата
-   * @param {Event} e - событие клика
    */
   const startEditingTitle = (chat, e) => {
     e.stopPropagation();
@@ -114,24 +134,37 @@ function Chat() {
 
   /**
    * Сохраняет измененное название чата
-   * @param {number} chatId - ID чата
-   * @param {Event} e - событие клика
    */
-  const saveEditedTitle = (chatId, e) => {
+  const saveEditedTitle = async (chatId, e) => {
     e.stopPropagation();
-    if (editTitle.trim()) {
-      const updatedChats = chats.map(chat => 
+
+    if (!editTitle.trim()) {
+      setEditingChatId(null);
+      return;
+    }
+
+    try {
+      await API.updateConversation(chatId, { title: editTitle.trim() });
+
+      const updatedChats = chats.map(chat =>
         chat.id === chatId ? { ...chat, title: editTitle.trim() } : chat
       );
       setChats(updatedChats);
+
+      if (activeChat?.id === chatId) {
+        setActiveChat({ ...activeChat, title: editTitle.trim() });
+      }
+    } catch (err) {
+      console.error('Error updating conversation:', err);
+      setError('Ошибка обновления названия');
+    } finally {
+      setEditingChatId(null);
+      setEditTitle('');
     }
-    setEditingChatId(null);
-    setEditTitle('');
   };
 
   /**
    * Отменяет редактирование названия
-   * @param {Event} e - событие клика
    */
   const cancelEditing = (e) => {
     e.stopPropagation();
@@ -141,88 +174,132 @@ function Chat() {
 
   /**
    * Обрабатывает отправку нового сообщения
-   * @param {Event} e - событие отправки формы
    */
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (newMessage.trim() && chats[activeChat]) {
-      const updatedChats = [...chats];
-      const currentChat = updatedChats[activeChat];
-      
-      // Создаем новое сообщение пользователя
-      const userMessage = {
-        id: Date.now(),
-        type: 'user',
-        content: newMessage,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        attachments: [] // Заготовка для будущих вложений
+
+    if (!newMessage.trim()) return;
+
+    setSendingMessage(true);
+    setError('');
+
+    try {
+      const messageData = {
+        body: newMessage.trim(),
+        conversation_id: activeChat?.id || null,
+        language: 'auto'
       };
 
-      currentChat.messages.push(userMessage);
-      
-      // Если это первое сообщение в чате, генерируем название и описание
-      if (currentChat.messages.length === 1) {
-        currentChat.title = generateChatTitle(newMessage);
-        currentChat.description = newMessage.substring(0, 40) + (newMessage.length > 40 ? '...' : '');
+      const { data } = await API.sendMessage(messageData);
+
+      // Если это новый чат, обновляем список чатов
+      if (!activeChat?.id || activeChat.isNew) {
+        await loadConversations();
+        // Загружаем сообщения для нового чата
+        const messages = await loadConversationMessages(data.conversation_id);
+        setActiveChat({
+          id: data.conversation_id,
+          title: newMessage.substring(0, 30) + (newMessage.length > 30 ? '...' : ''),
+          messages: messages,
+          isNew: false
+        });
       } else {
-        // Обновляем описание последним сообщением
-        currentChat.description = newMessage.substring(0, 40) + (newMessage.length > 40 ? '...' : '');
+        // Обновляем сообщения в существующем чате
+        const messages = await loadConversationMessages(activeChat.id);
+        setActiveChat({ ...activeChat, messages });
+
+        // Обновляем чат в списке
+        const updatedChats = chats.map(chat =>
+          chat.id === activeChat.id
+            ? { ...chat, messages, description: newMessage.substring(0, 40) }
+            : chat
+        );
+        setChats(updatedChats);
       }
 
-      setChats(updatedChats);
-      setNewMessage(''); // Очищаем поле ввода
-
-      // Имитация ответа AI с задержкой
-      setTimeout(() => {
-        const aiResponse = {
-          id: Date.now() + 1,
-          type: 'assistant',
-          content: getAIResponse(newMessage),
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        
-        const finalChats = [...updatedChats];
-        finalChats[activeChat].messages.push(aiResponse);
-        finalChats[activeChat].unreadCount += 1;
-        setChats(finalChats);
-      }, 1000);
+      setNewMessage('');
+      setTimeout(scrollToBottom, 100);
+    } catch (err) {
+      console.error('Error sending message:', err);
+      setError('Ошибка отправки сообщения. Попробуйте еще раз.');
+    } finally {
+      setSendingMessage(false);
     }
   };
 
   /**
-   * Генерирует ответ AI на основе сообщения пользователя
-   * @param {string} userMessage - сообщение пользователя
-   * @returns {string} - ответ AI
-   */
-  const getAIResponse = (userMessage) => {
-    const message = userMessage.toLowerCase();
-    
-    // Генерируем контекстные ответы в зависимости от содержания сообщения
-    if (message.includes('python') || message.includes('print')) {
-      return `Проанализировал ваш Python код. Заметил несколько моментов для улучшения:\n\n• Рекомендую использовать современный синтаксис Python\n• Обратите внимание на отступы и стиль кода\n• Рассмотрите обработку исключений\n\nХотите более детальный анализ?`;
-    } else if (message.includes('javascript') || message.includes('js')) {
-      return `Анализ JavaScript кода выполнен. Основные рекомендации:\n\n• Проверьте области видимости переменных\n• Рекомендую использовать const/let вместо var\n• Обратите внимание на асинхронные операции\n\nНужна помощь с конкретной ошибкой?`;
-    } else if (message.includes('ошибка') || message.includes('error')) {
-      return `Помогу найти ошибку в вашем коде. Для более точного анализа:\n\n• Прикрепите полный код файла\n• Укажите текст ошибки\n• Опишите ожидаемое поведение\n\nЧто именно не работает?`;
-    } else {
-      return `Проанализировал ваш запрос. Готов помочь с:\n\n• Поиском и исправлением ошибок\n• Оптимизацией производительности\n• Улучшением архитектуры кода\n• Code review лучших практик\n\nЧто конкретно вас интересует?`;
-    }
-  };
-
-  /**
-   * Обрабатывает прикрепление файла (заглушка для будущей реализации)
+   * Обрабатывает прикрепление файла
    */
   const handleFileAttach = () => {
-    console.log('Функция прикрепления файла будет реализована позже');
-    // TODO: Реализовать логику выбора и прикрепления файлов
+    fileInputRef.current?.click();
   };
 
-  const currentChat = chats[activeChat];
+  /**
+   * Обрабатывает выбор файла
+   */
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSendingMessage(true);
+    setError('');
+
+    try {
+      const { data } = await API.uploadFile(file, activeChat?.id || null);
+
+      // Если это новый чат, обновляем список
+      if (!activeChat?.id || activeChat.isNew) {
+        await loadConversations();
+        const messages = await loadConversationMessages(data.conversation_id);
+        setActiveChat({
+          id: data.conversation_id,
+          title: `Анализ: ${file.name}`,
+          messages: messages,
+          isNew: false
+        });
+      } else {
+        // Обновляем сообщения в существующем чате
+        const messages = await loadConversationMessages(activeChat.id);
+        setActiveChat({ ...activeChat, messages });
+
+        const updatedChats = chats.map(chat =>
+          chat.id === activeChat.id
+            ? { ...chat, messages, description: `Загружен файл: ${file.name}` }
+            : chat
+        );
+        setChats(updatedChats);
+      }
+
+      setTimeout(scrollToBottom, 100);
+    } catch (err) {
+      console.error('Error uploading file:', err);
+      if (err.response?.status === 400) {
+        setError('Неподдерживаемый формат файла');
+      } else {
+        setError('Ошибка загрузки файла. Попробуйте еще раз.');
+      }
+    } finally {
+      setSendingMessage(false);
+      // Сбрасываем input для возможности загрузить тот же файл снова
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const currentChatMessages = activeChat?.messages || [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:bg-gradient-to-br dark:from-gray-900 dark:to-blue-900 transition-colors duration-200">
-      
       <div className="container mx-auto px-4 py-6 max-w-7xl">
+        {/* Сообщение об ошибке */}
+        {error && (
+          <div className="mb-4 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg">
+            {error}
+            <button onClick={() => setError('')} className="float-right font-bold">×</button>
+          </div>
+        )}
+
         <div className="flex gap-6 h-[calc(100vh-180px)]">
           {/* Боковая панель со списком чатов */}
           <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4 transition-all duration-300 ${
@@ -233,119 +310,110 @@ function Chat() {
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white">Чаты</h2>
               )}
               <div className="flex space-x-2">
-                {/* Кнопка сворачивания/разворачивания боковой панели */}
-                <button 
+                <button
                   onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                   className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold transition-colors"
+                  title={isSidebarCollapsed ? 'Развернуть' : 'Свернуть'}
                 >
                   {isSidebarCollapsed ? '→' : '←'}
                 </button>
-                {/* Кнопка создания нового чата (видна только в развернутом состоянии) */}
                 {!isSidebarCollapsed && (
-                  <button 
+                  <button
                     onClick={createNewChat}
                     className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 text-white w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold transition-colors"
+                    title="Новый чат"
                   >
                     +
                   </button>
                 )}
               </div>
             </div>
-            
-            {/* Контент боковой панели (скрывается при сворачивании) */}
+
             {!isSidebarCollapsed && (
               <>
-                {/* Список чатов */}
-                <div className="space-y-3">
-                  {chats.map((chat, index) => (
-                    <div
-                      key={chat.id}
-                      onClick={() => setActiveChat(index)}
-                      className={`p-3 rounded-lg cursor-pointer transition-colors group relative ${
-                        activeChat === index
-                          ? 'bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700'
-                          : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border border-transparent'
-                      }`}
-                    >
-                      {/* Кнопки управления чатом (появляются при наведении) */}
-                      <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
-                        {/* Кнопка редактирования названия */}
-                        <button
-                          onClick={(e) => startEditingTitle(chat, e)}
-                          className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300 w-6 h-6 rounded text-xs flex items-center justify-center transition-colors"
-                          title="Редактировать название"
-                        >
-                          ✏️
-                        </button>
-                        
-                        {/* Кнопка удаления чата */}
-                        <button
-                          onClick={(e) => deleteChat(chat.id, e)}
-                          className="bg-red-200 hover:bg-red-300 dark:bg-red-700 dark:hover:bg-red-600 text-red-700 dark:text-red-300 w-6 h-6 rounded text-xs flex items-center justify-center transition-colors"
-                          title="Удалить чат"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-
-                      {/* Режим редактирования названия чата */}
-                      {editingChatId === chat.id ? (
-                        <div className="mb-2">
-                          <input
-                            type="text"
-                            value={editTitle}
-                            onChange={(e) => setEditTitle(e.target.value)}
-                            className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            onKeyPress={(e) => e.key === 'Enter' && saveEditedTitle(chat.id, e)}
-                            onClick={(e) => e.stopPropagation()}
-                            autoFocus
-                          />
-                          <div className="flex space-x-1 mt-1">
-                            <button
-                              onClick={(e) => saveEditedTitle(chat.id, e)}
-                              className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-xs transition-colors"
-                            >
-                              ✓
-                            </button>
-                            <button
-                              onClick={cancelEditing}
-                              className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded text-xs transition-colors"
-                            >
-                              ✕
-                            </button>
-                          </div>
+                {loading ? (
+                  <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                    Загрузка...
+                  </div>
+                ) : (
+                  <div className="space-y-3 overflow-y-auto max-h-[calc(100vh-280px)]">
+                    {chats.map((chat, index) => (
+                      <div
+                        key={chat.id}
+                        onClick={() => selectChat(chat, index)}
+                        className={`p-3 rounded-lg cursor-pointer transition-colors group relative ${
+                          activeChat?.id === chat.id
+                            ? 'bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700'
+                            : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border border-transparent'
+                        }`}
+                      >
+                        <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
+                          <button
+                            onClick={(e) => startEditingTitle(chat, e)}
+                            className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300 w-6 h-6 rounded text-xs flex items-center justify-center transition-colors"
+                            title="Редактировать название"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={(e) => deleteChat(chat.id, e)}
+                            className="bg-red-200 hover:bg-red-300 dark:bg-red-700 dark:hover:bg-red-600 text-red-700 dark:text-red-300 w-6 h-6 rounded text-xs flex items-center justify-center transition-colors"
+                            title="Удалить чат"
+                          >
+                            🗑️
+                          </button>
                         </div>
-                      ) : (
-                        <>
-                          <div className="flex justify-between items-start mb-2 pr-8">
-                            <span className="font-medium text-gray-900 dark:text-white truncate">
-                              {chat.title}
-                            </span>
-                            {/* Бейдж с количеством непрочитанных сообщений */}
-                            {chat.unreadCount > 0 && (
-                              <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded-full min-w-6 text-center">
-                                {chat.unreadCount}
-                              </span>
-                            )}
+
+                        {editingChatId === chat.id ? (
+                          <div className="mb-2">
+                            <input
+                              type="text"
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              onKeyPress={(e) => e.key === 'Enter' && saveEditedTitle(chat.id, e)}
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                            />
+                            <div className="flex space-x-1 mt-1">
+                              <button
+                                onClick={(e) => saveEditedTitle(chat.id, e)}
+                                className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-xs transition-colors"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={cancelEditing}
+                                className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded text-xs transition-colors"
+                              >
+                                ✕
+                              </button>
+                            </div>
                           </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 truncate pr-8">
-                            {chat.description}
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  ))}
+                        ) : (
+                          <>
+                            <div className="flex justify-between items-start mb-2 pr-8">
+                              <span className="font-medium text-gray-900 dark:text-white truncate">
+                                {chat.title}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 truncate pr-8">
+                              {chat.description || 'Нет сообщений'}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    ))}
 
-                  {/* Сообщение при отсутствии чатов */}
-                  {chats.length === 0 && (
-                    <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                      <p>Нет активных чатов</p>
-                      <p className="text-sm">Создайте новый чат чтобы начать общение</p>
-                    </div>
-                  )}
-                </div>
+                    {chats.length === 0 && (
+                      <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                        <p>Нет активных чатов</p>
+                        <p className="text-sm">Создайте новый чат</p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                {/* Кнопка создания нового чата внизу панели */}
                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
                   <button
                     onClick={createNewChat}
@@ -361,96 +429,93 @@ function Chat() {
 
           {/* Основная область чата */}
           <div className="flex-1 flex flex-col bg-white dark:bg-gray-800 rounded-2xl shadow-lg">
-            {currentChat ? (
+            {activeChat ? (
               <>
-                {/* Заголовок активного чата */}
                 <div className="border-b border-gray-200 dark:border-gray-600 p-4">
-                  <h3 className="font-bold text-gray-900 dark:text-white">{currentChat.title}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{currentChat.description}</p>
+                  <h3 className="font-bold text-gray-900 dark:text-white">{activeChat.title}</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {activeChat.description || 'Отправьте сообщение для анализа кода'}
+                  </p>
                 </div>
 
-                {/* Область сообщений */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                  {currentChat.messages.length > 0 ? (
-                    currentChat.messages.map((message) => (
+                  {currentChatMessages.length > 0 ? (
+                    currentChatMessages.map((message) => (
                       <div
                         key={message.id}
-                        className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                        className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                       >
                         <div
                           className={`max-w-2xl rounded-2xl p-4 ${
-                            message.type === 'user'
+                            message.role === 'user'
                               ? 'bg-blue-600 text-white rounded-br-none'
+                              : message.is_error
+                              ? 'bg-red-100 dark:bg-red-900 text-red-900 dark:text-red-100 rounded-bl-none'
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none'
                           }`}
                         >
-                          {/* Текст сообщения с сохранением форматирования */}
-                          <pre className="whitespace-pre-wrap font-sans">{message.content}</pre>
-                          
-                          {/* Индикатор прикрепленных файлов */}
-                          {message.attachments && message.attachments.length > 0 && (
-                            <div className="mt-2">
-                              <div className="text-xs opacity-75">
-                                Прикрепленные файлы: {message.attachments.length}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Время отправки сообщения */}
+                          <pre className="whitespace-pre-wrap font-sans">
+                            {message.content || message.body}
+                          </pre>
                           <div className={`text-xs mt-2 ${
-                            message.type === 'user' 
-                              ? 'text-blue-200' 
+                            message.role === 'user'
+                              ? 'text-blue-200'
                               : 'text-gray-500 dark:text-gray-400'
                           }`}>
-                            {message.timestamp}
+                            {new Date(message.created_at).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
                           </div>
                         </div>
                       </div>
                     ))
                   ) : (
-                    /* Сообщение при отсутствии сообщений в чате */
                     <div className="text-center text-gray-500 dark:text-gray-400 py-12">
-                      <p>Начните общение - отправьте первое сообщение</p>
-                      <p className="text-sm mt-2">Чат получит автоматическое название на основе вашего запроса</p>
+                      <p>Начните общение - отправьте код для анализа</p>
+                      <p className="text-sm mt-2">или загрузите файл с кодом</p>
                     </div>
                   )}
+                  <div ref={messagesEndRef} />
                 </div>
 
-                {/* Поле ввода нового сообщения */}
                 <div className="border-t border-gray-200 dark:border-gray-600 p-4">
                   <form onSubmit={handleSendMessage} className="flex space-x-3">
-                    {/* Кнопка прикрепления файла */}
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      accept=".py,.js,.ts,.java,.cpp,.c,.cs,.go,.rs,.html,.css,.json,.xml"
+                      className="hidden"
+                    />
                     <button
                       type="button"
                       onClick={handleFileAttach}
-                      className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 w-12 h-12 rounded-lg flex items-center justify-center transition-colors"
+                      disabled={sendingMessage}
+                      className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 w-12 h-12 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Прикрепить файл"
                     >
                       📎
                     </button>
-                    
-                    {/* Поле ввода текста сообщения */}
                     <input
                       type="text"
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       placeholder="Написать сообщение..."
-                      className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                      disabled={sendingMessage}
+                      className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors disabled:opacity-50"
                     />
-                    
-                    {/* Кнопка отправки сообщения */}
                     <button
                       type="submit"
-                      disabled={!newMessage.trim()}
+                      disabled={!newMessage.trim() || sendingMessage}
                       className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-medium transition-colors"
                     >
-                      Отправить
+                      {sendingMessage ? 'Отправка...' : 'Отправить'}
                     </button>
                   </form>
                 </div>
               </>
             ) : (
-              /* Сообщение при отсутствии активного чата */
               <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
                 <div className="text-center">
                   <p className="text-lg mb-2">Выберите чат или создайте новый</p>

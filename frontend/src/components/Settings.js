@@ -1,17 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
-import Header from './Header';
+import API from '../services/api';
 
 function Settings() {
   const { theme, setTheme } = useTheme();
-  
+  const navigate = useNavigate();
+
   const [settings, setSettings] = useState({
-    login: '12345678',
-    email: '323423@mail.ru',
+    username: '',
+    email: '',
     password: '********',
     languages: {
-      python: true,
-      javascript: true,
+      python: false,
+      javascript: false,
       java: false,
       html: false,
       css: false,
@@ -20,16 +22,62 @@ function Settings() {
   });
 
   const [isEditing, setIsEditing] = useState({
-    login: false,
+    username: false,
     email: false,
     password: false
   });
 
   const [tempValues, setTempValues] = useState({
-    login: '',
+    username: '',
     email: '',
     password: ''
   });
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  // Загрузка данных при монтировании
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [userResponse, settingsResponse] = await Promise.all([
+        API.getCurrentUser(),
+        API.getUserSettings()
+      ]);
+
+      // Языки по умолчанию - только Python и JavaScript
+      const defaultLanguages = {
+        python: false,
+        javascript: false
+      };
+
+      // Объединяем дефолтные языки с сохраненными
+      const savedLanguages = settingsResponse.data.language_preferences || {};
+      const mergedLanguages = { ...defaultLanguages, ...savedLanguages };
+
+      setSettings({
+        username: userResponse.data.username,
+        email: userResponse.data.email,
+        password: '********',
+        languages: mergedLanguages
+      });
+    } catch (err) {
+      console.error('Error loading user data:', err);
+      if (err.response?.status === 401) {
+        navigate('/login');
+      } else {
+        setError('Ошибка загрузки данных пользователя');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Функция для начала редактирования поля
   const startEditing = (field) => {
@@ -44,17 +92,49 @@ function Settings() {
   };
 
   // Функция для сохранения изменений
-  const saveField = (field) => {
-    if (tempValues[field].trim()) {
+  const saveField = async (field) => {
+    if (!tempValues[field].trim()) {
+      setIsEditing({
+        ...isEditing,
+        [field]: false
+      });
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+
+    try {
+      if (field === 'password') {
+        // Пока не реализована смена пароля на бэкенде
+        setError('Смена пароля пока не поддерживается');
+        setIsEditing({ ...isEditing, [field]: false });
+        return;
+      }
+
+      const updateData = {};
+      updateData[field] = tempValues[field];
+
+      await API.updateUserProfile(updateData);
+
       setSettings({
         ...settings,
         [field]: tempValues[field]
       });
+      setSuccess('Профиль успешно обновлен');
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      if (err.response?.data?.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError('Ошибка обновления профиля');
+      }
+    } finally {
+      setIsEditing({
+        ...isEditing,
+        [field]: false
+      });
     }
-    setIsEditing({
-      ...isEditing,
-      [field]: false
-    });
   };
 
   // Функция для отмены редактирования
@@ -68,32 +148,83 @@ function Settings() {
   // Функция для изменения темы
   const handleThemeChange = (newTheme) => {
     setTheme(newTheme);
+    // Сохраняем тему на сервер
+    saveSettings({ theme: newTheme });
   };
 
   // Функция для изменения выбора языка
   const handleLanguageChange = (language) => {
+    const updatedLanguages = {
+      ...settings.languages,
+      [language]: !settings.languages[language]
+    };
+
     setSettings({
       ...settings,
-      languages: {
-        ...settings.languages,
-        [language]: !settings.languages[language]
-      }
+      languages: updatedLanguages
     });
+
+    // Сохраняем на сервер
+    saveSettings({ language_preferences: updatedLanguages });
+  };
+
+  // Функция для сохранения настроек на сервер
+  const saveSettings = async (settingsData) => {
+    setError('');
+    try {
+      await API.updateUserSettings(settingsData);
+    } catch (err) {
+      console.error('Error saving settings:', err);
+      setError('Ошибка сохранения настроек');
+    }
   };
 
   // Функция для сохранения всех настроек
-  const handleSaveSettings = () => {
-    console.log('Настройки сохранены:', { ...settings, theme });
-    alert('Настройки успешно сохранены!');
+  const handleSaveSettings = async () => {
+    setError('');
+    setSuccess('');
+    try {
+      await API.updateUserSettings({
+        theme: theme,
+        language_preferences: settings.languages
+      });
+      setSuccess('Настройки успешно сохранены!');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Error saving settings:', err);
+      setError('Ошибка сохранения настроек');
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:bg-gradient-to-br dark:from-gray-900 dark:to-blue-900">
+        <div className="container mx-auto px-4 py-8 max-w-4xl">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 text-center">
+            <p className="text-gray-600 dark:text-gray-400">Загрузка...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:bg-gradient-to-br dark:from-gray-900 dark:to-blue-900">
-      
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
-          {/* Заголовок */}
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center">Настройки</h1>
+
+          {/* Сообщения об ошибках и успехе */}
+          {error && (
+            <div className="mb-4 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="mb-4 bg-green-100 dark:bg-green-900 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-300 px-4 py-3 rounded-lg">
+              {success}
+            </div>
+          )}
 
           <div className="space-y-8">
             {/* Секция логина */}
@@ -102,23 +233,23 @@ function Settings() {
                 Логин
               </label>
               <div className="flex items-center justify-between">
-                {isEditing.login ? (
+                {isEditing.username ? (
                   <div className="flex items-center space-x-3 flex-1">
                     <input
                       type="text"
-                      value={tempValues.login}
-                      onChange={(e) => setTempValues({...tempValues, login: e.target.value})}
+                      value={tempValues.username}
+                      onChange={(e) => setTempValues({...tempValues, username: e.target.value})}
                       className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       autoFocus
                     />
                     <button
-                      onClick={() => saveField('login')}
+                      onClick={() => saveField('username')}
                       className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg text-sm transition-colors"
                     >
                       ✓
                     </button>
                     <button
-                      onClick={() => cancelEditing('login')}
+                      onClick={() => cancelEditing('username')}
                       className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded-lg text-sm transition-colors"
                     >
                       ✕
@@ -126,9 +257,9 @@ function Settings() {
                   </div>
                 ) : (
                   <>
-                    <span className="text-gray-900 dark:text-white">{settings.login}</span>
+                    <span className="text-gray-900 dark:text-white">{settings.username}</span>
                     <button
-                      onClick={() => startEditing('login')}
+                      onClick={() => startEditing('username')}
                       className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium transition-colors"
                     >
                       Изменить
@@ -250,8 +381,7 @@ function Settings() {
                   Темная
                 </button>
               </div>
-              
-              {/* Индикатор текущей темы */}
+
               <div className="mt-3 flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
                 <span>Текущая тема:</span>
                 <span className="font-medium">
@@ -295,7 +425,7 @@ function Settings() {
                 onClick={handleSaveSettings}
                 className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 text-white px-8 py-3 rounded-lg font-medium transition-colors shadow-md"
               >
-                Сохранить
+                Сохранить настройки
               </button>
             </div>
           </div>

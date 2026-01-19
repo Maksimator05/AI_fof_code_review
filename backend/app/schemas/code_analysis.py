@@ -31,10 +31,27 @@ class ConversationResponse(BaseModel):
     id: int
     title: str
     created_at: str
-    messages: List[MessageResponse]
+    messages: List[MessageResponse] = []
 
     class Config:
         orm_mode = True
+        from_attributes = True
+
+class ConversationListItem(BaseModel):
+    id: int
+    title: str
+    description: Optional[str] = None
+    language: Optional[str] = None
+    created_at: str
+    updated_at: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
+class ConversationUpdate(BaseModel):
+    title: Optional[str] = None
+    language: Optional[str] = None
 
 class FileUploadResponse(BaseModel):
     conversation_id: int

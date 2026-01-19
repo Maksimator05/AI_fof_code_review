@@ -1,17 +1,21 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import Header from './Header'; // Импортируем Header для использования на странице
-import { useTheme } from '../contexts/ThemeContext'; // Для поддержки темной темы
+import { Link, useNavigate } from 'react-router-dom';
+import Header from './Header';
+import { useTheme } from '../contexts/ThemeContext';
+import API, { tokenManager } from '../services/api';
 
 function Login() {
-  // Получаем текущую тему для применения соответствующих стилей
   const { theme } = useTheme();
-  
+  const navigate = useNavigate();
+
   // Состояние для хранения данных формы входа
   const [formData, setFormData] = useState({
-    email: '',
+    username: '',
     password: ''
   });
+
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   /**
    * Обрабатывает изменение значений полей формы
@@ -23,17 +27,45 @@ function Login() {
       ...formData,
       [name]: value
     });
+    // Очищаем ошибку при изменении полей
+    if (error) setError('');
   };
 
   /**
    * Обрабатывает отправку формы входа
    * @param {Event} e - событие отправки формы
    */
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Login data:', formData);
-    // TODO: Реализовать логику аутентификации с бэкендом
-    // Например: отправка запроса на API, обработка ответа, редирект
+    setError('');
+    setLoading(true);
+
+    try {
+      const { data } = await API.login({
+        username: formData.username,
+        password: formData.password
+      });
+
+      // Сохраняем access token в localStorage
+      tokenManager.setToken(data.access_token);
+
+      // Перенаправляем в чат
+      navigate('/chat');
+    } catch (err) {
+      console.error('Login error:', err);
+
+      if (err.response?.status === 401) {
+        setError('Неверный логин или пароль');
+      } else if (err.response?.status === 423) {
+        setError('Ваш аккаунт заблокирован');
+      } else if (err.response?.data?.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError('Ошибка подключения к серверу. Попробуйте позже.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -59,20 +91,28 @@ function Login() {
             
             {/* Поля формы */}
             <div className="space-y-4">
-              {/* Поле для email */}
+              {/* Сообщение об ошибке */}
+              {error && (
+                <div className="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg">
+                  {error}
+                </div>
+              )}
+
+              {/* Поле для username (логина) */}
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Электронная почта
+                <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Логин
                 </label>
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
+                  id="username"
+                  name="username"
+                  type="text"
                   required
                   className="appearance-none relative block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
-                  placeholder="example@mail.com"
-                  value={formData.email}
+                  placeholder="Введите логин"
+                  value={formData.username}
                   onChange={handleChange}
+                  disabled={loading}
                 />
               </div>
 
@@ -90,6 +130,7 @@ function Login() {
                   placeholder="Введите пароль"
                   value={formData.password}
                   onChange={handleChange}
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -116,9 +157,10 @@ function Login() {
               {/* Кнопка входа */}
               <button
                 type="submit"
-                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 shadow-md"
+                disabled={loading}
+                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                Войти
+                {loading ? 'Вход...' : 'Войти'}
               </button>
 
               {/* Ссылка на регистрацию для новых пользователей */}

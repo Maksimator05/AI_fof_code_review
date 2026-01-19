@@ -1,21 +1,39 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
+import API, { tokenManager } from '../services/api';
 
 // Константы для навигационных элементов
 // type: 'link' - ссылка с переходом, 'button' - кнопка без перехода
 const NAV_ITEMS = [
   { path: '/', label: 'Главная', type: 'link' },
   { path: '/chat', label: 'Анализ', type: 'link' },
-  { label: 'История', type: 'link' },
+  { path: '/history', label: 'История', type: 'link' },
   { path: '/settings', label:'Настройки', type: 'link' },
 ];
 
 function Header() {
   // Получаем текущий путь для подсветки активной ссылки
   const location = useLocation();
+  const navigate = useNavigate();
   // Получаем текущую тему для применения dark mode классов
   const { theme } = useTheme();
+
+  // Состояние для отслеживания аутентификации
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Проверяем наличие токена при монтировании и изменении location
+  useEffect(() => {
+    const token = tokenManager.getToken();
+    setIsAuthenticated(!!token);
+  }, [location]);
+
+  // Функция для выхода из системы
+  const handleLogout = () => {
+    tokenManager.removeToken();
+    setIsAuthenticated(false);
+    navigate('/login');
+  };
 
   /**
    * Функция для рендеринга навигационного элемента
@@ -87,13 +105,22 @@ function Header() {
       
       {/* Блок с кнопками действий */}
       <div className="flex items-center space-x-4">
-        {/* Кнопка входа в систему */}
-        <Link 
-          to="/login" 
-          className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
-        >
-          Войти
-        </Link>
+        {/* Кнопка входа/выхода в зависимости от статуса аутентификации */}
+        {isAuthenticated ? (
+          <button
+            onClick={handleLogout}
+            className="bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+          >
+            Выйти
+          </button>
+        ) : (
+          <Link
+            to="/login"
+            className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+          >
+            Войти
+          </Link>
+        )}
       </div>
     </header>
   );
