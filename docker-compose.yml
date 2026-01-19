@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # PostgreSQL база данных
+  # PostgreSQL база данных - меняем порт
   postgres:
     image: postgres:15-alpine
     environment:
@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "5433:5432"  # МЕНЯЕМ НА 5433
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -19,7 +19,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "6380:6379"  # МЕНЯЕМ НА 6380
     networks:
       - app-network
 
@@ -49,27 +49,23 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "8080:8080"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/code_review_db
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=sqlite:///./auth.db  # Используем SQLite из вашего кода
       - ML_SERVICE_URL=http://ml-service:8000
       - SECRET_KEY=dev-secret-key-change-in-production
-      - ALGORITHM=HS256
-      - ACCESS_TOKEN_EXPIRE_MINUTES=30
       - IP=0.0.0.0
-      - PYTHONPATH=/app
-      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://frontend:3000
+      - FRONTEND_PORT=3001  # Указываем порт frontend
+
     depends_on:
-      - postgres
-      - redis
       - ml-service
     volumes:
       - ./backend:/app
+      - ./backend/auth.db:/app/auth.db  # Для сохранения SQLite базы
     networks:
       - app-network
-    # УБРАЛИ extra_hosts - backend не нуждается в доступе к локальному хосту
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: python -m backend.app.main
 
   # Фронтенд
   frontend:
@@ -79,8 +75,10 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:8000
-      # УБРАЛИ ML_SERVICE_URL - frontend общается только с backend
+      - REACT_APP_API_URL=http://localhost:8080  # Для браузера
+      - REACT_APP_WS_URL=ws://localhost:8080     # Для вебсокетов
+      - CHOKIDAR_USEPOLLING=true  # Для hot reload в Docker
+      - PORT=3000
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -88,6 +86,8 @@ services:
       - app-network
     stdin_open: true
     tty: true
+    depends_on:
+      - backend
     command: npm start
 
 networks:

@@ -7,13 +7,62 @@ import Registration from './components/Registration';
 import Login from './components/Login';
 import Chat from './components/Chat';
 import Settings from './components/Settings';
+import axios from 'axios';
+import { useEffect } from 'react';
 import './App.css';
+
+// Настройка axios для работы с API
+const API_BASE_URL = 'http://localhost:8080';
+axios.defaults.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+axios.defaults.withCredentials = true; // Для работы с cookies
+axios.defaults.headers.common['Content-Type'] = 'application/json';
+
+// Интерцептор для обработки ошибок и обновления токена
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // Если ошибка 401 (неавторизован) и это не повторный запрос
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        // Пытаемся обновить токен
+        const response = await axios.post('/refresh');
+        if (response.status === 200) {
+          // Повторяем оригинальный запрос с новым токеном
+          return axios(originalRequest);
+        }
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError);
+        // Если не удалось обновить токен, редиректим на логин
+        window.location.href = '/login';
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 /**
  * Компонент главной страницы приложения
  * Отображает приветствие, список поддерживаемых языков и информацию о сервисе
  */
 function HomePage() {
+  // Добавляем проверку соединения при загрузке главной страницы
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const response = await axios.get('/health-api');
+        console.log('Backend connection:', response.data);
+      } catch (error) {
+        console.error('Backend connection failed:', error);
+      }
+    };
+    checkConnection();
+  }, []);
+
   // Данные о поддерживаемых языках программирования
   const languages = [
     {

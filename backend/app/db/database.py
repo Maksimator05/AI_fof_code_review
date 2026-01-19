@@ -1,15 +1,24 @@
+# backend/app/db/database.py
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from dotenv import load_dotenv
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./auth.db"
+load_dotenv()
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
+# Используем PostgreSQL если есть переменная окружения, иначе SQLite для разработки
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./auth.db")
+
+if DATABASE_URL.startswith("postgresql://"):
+    engine = create_engine(DATABASE_URL)
+else:
+    # SQLite для разработки
+    engine = create_engine(
+        DATABASE_URL, connect_args={"check_same_thread": False}
+    )
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
-
 
 def get_db():
     db = SessionLocal()

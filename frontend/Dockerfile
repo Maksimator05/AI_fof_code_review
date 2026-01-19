@@ -1,15 +1,19 @@
+# Для разработки с hot reload используем Node образ
 FROM node:18-alpine
 
 WORKDIR /app
 
+# Копируем package.json и package-lock.json
 COPY package*.json ./
-RUN npm ci
+
+# Устанавливаем зависимости
+RUN npm install
+
+# Копируем исходный код
 COPY . .
-RUN npm run build
 
-# Устанавливаем serve
-RUN npm install -g serve
-
+# Открываем порт
 EXPOSE 3000
 
-CMD ["serve", "-s", "build", "-l", "3000"]
+# Запускаем приложение в режиме разработки
+CMD ["npm", "start"]
