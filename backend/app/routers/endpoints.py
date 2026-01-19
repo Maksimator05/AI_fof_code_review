@@ -137,6 +137,9 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
              status_code=status.HTTP_200_OK)
 def login(user_data: UserLogin, db: Session = Depends(get_db)):
     user = get_user_by_username(db, user_data.username)
+    # Если не нашли по username, попробуем по email
+    if not user:
+        user = get_user_by_email(db, user_data.username)
 
     if (not user) or (not verify_password(user_data.password, user.hashed_password)):
         raise HTTPException(
